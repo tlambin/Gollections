@@ -3,53 +3,66 @@ package com.pokyx.gollections
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.*
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.pokyx.gollections.ui.DashboardScreen
 import com.pokyx.gollections.ui.CollectionListScreen
 import com.pokyx.gollections.ui.AddObjectScreen
 import com.pokyx.gollections.ui.CollectionViewModel
-import com.pokyx.gollections.ui.CollectionViewModelFactory
+import com.pokyx.gollections.ui.navigation.DashboardRoute
+import com.pokyx.gollections.ui.navigation.CollectionListRoute
+import com.pokyx.gollections.ui.navigation.AddObjectRoute
 import com.pokyx.gollections.ui.theme.GollectionsTheme
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint // <--- Indispensable pour que Hilt fonctionne dans cette Activity
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             GollectionsTheme {
-                // Initialisation officielle du ViewModel avec sa Factory
-                val viewModel: CollectionViewModel = viewModel(
-                    factory = CollectionViewModelFactory(application)
-                )
+                val navController = rememberNavController()
 
-                var currentScreen by remember { mutableStateOf("dashboard") }
-                var selectedCategory by remember { mutableStateOf("") }
-
-                when (currentScreen) {
-                    "dashboard" -> {
+                NavHost(
+                    navController = navController,
+                    startDestination = DashboardRoute
+                ) {
+                    composable<DashboardRoute> {
                         DashboardScreen(
                             onCategoryClick = { category ->
-                                selectedCategory = category
-                                currentScreen = "list"
+                                navController.navigate(CollectionListRoute(categoryName = category))
                             },
-                            onAddObjectClick = { currentScreen = "add" }
+                            onAddObjectClick = {
+                                navController.navigate(AddObjectRoute)
+                            }
                         )
                     }
-                    "list" -> {
-                        // On donne le ViewModel à l'écran de liste pour lire la BDD
+
+                    composable<CollectionListRoute> { backStackEntry ->
+                        val route: CollectionListRoute = backStackEntry.toRoute()
+
+                        // hiltViewModel() s'occupe de tout : il cherche le ViewModel,
+                        // l'instancie avec ses dépendances (le DAO) et respecte son cycle de vie.
+                        val viewModel: CollectionViewModel = hiltViewModel()
+
                         CollectionListScreen(
-                            categoryName = selectedCategory,
+                            categoryName = route.categoryName,
                             viewModel = viewModel,
-                            onBackClick = { currentScreen = "dashboard" }
+                            onBackClick = { navController.popBackStack() }
                         )
                     }
-                    "add" -> {
+
+                    composable<AddObjectRoute> {
+                        val viewModel: CollectionViewModel = hiltViewModel()
+
                         AddObjectScreen(
-                            onBackClick = { currentScreen = "dashboard" },
+                            onBackClick = { navController.popBackStack() },
                             onSaveClick = { title, year, category, subCategory ->
-                                // ACTION REELLE : Sauvegarde dans la base de données Room
                                 viewModel.addItem(title, year, category, subCategory)
-                                currentScreen = "dashboard"
+                                navController.popBackStack()
                             }
                         )
                     }

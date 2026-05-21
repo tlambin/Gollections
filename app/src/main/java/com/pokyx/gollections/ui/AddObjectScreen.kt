@@ -1,6 +1,7 @@
 package com.pokyx.gollections.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,24 +12,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @Composable
 fun AddObjectScreen(
     onBackClick: () -> Unit,
-    onSaveClick: (title: String, year: String, category: String, subCategory: String) -> Unit
+    onSaveClick: (title: String, year: String, category: String, subCategory: String) -> Unit,
+    viewModel: CollectionViewModel = hiltViewModel() // Injection automatique via Hilt
 ) {
     var title by remember { mutableStateOf("") }
     var year by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("Blu-ray") }
-    var selectedSubCategory by remember { mutableStateOf("4K") }
 
-    val categories = listOf("Blu-ray", "Vinyles", "Jeux Vidéo")
+    // Récupération et transformation du flux des catégories de la BDD
+    val categoriesList by viewModel.allCategories.collectAsState(initial = emptyList())
+    val categories = categoriesList.map { it.name }
+
+    var selectedCategory by remember { mutableStateOf("") }
+    var selectedSubCategory by remember { mutableStateOf("") }
+
+    // Dès que les catégories sont chargées, on sélectionne la première par défaut
+    LaunchedEffect(categories) {
+        if (selectedCategory.isEmpty() && categories.isNotEmpty()) {
+            selectedCategory = categories.first()
+        }
+    }
 
     // Détermination des sous-catégories selon la catégorie principale
     val subCategories = when (selectedCategory) {
         "Blu-ray" -> listOf("4K", "3D", "Standard")
         "Jeux Vidéo" -> listOf("Switch", "PC", "PS5", "Xbox")
-        else -> emptyList() // Pas de sous-catégorie pour les Vinyles par exemple
+        else -> emptyList() // Pas de sous-catégorie pour les catégories personnalisées (ex: Vinyles, Livres...)
     }
 
     // Force la première sous-catégorie si on change de catégorie principale
@@ -76,18 +89,22 @@ fun AddObjectScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // 1. Choix Catégorie Principale
-            Text(text = "Catégorie", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                categories.forEach { category ->
-                    FilterChip(
-                        selected = selectedCategory == category,
-                        onClick = { selectedCategory = category },
-                        label = { Text(category) }
-                    )
+            // 1. Choix Catégorie Principale (DYNAMIQUE)
+            if (categories.isNotEmpty()) {
+                Text(text = "Catégorie", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()), // Devient scrollable horizontalement si la liste grandit !
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    categories.forEach { category ->
+                        FilterChip(
+                            selected = selectedCategory == category,
+                            onClick = { selectedCategory = category },
+                            label = { Text(category) }
+                        )
+                    }
                 }
             }
 
@@ -95,7 +112,9 @@ fun AddObjectScreen(
             if (subCategories.isNotEmpty()) {
                 Text(text = "Format / Plateforme", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     subCategories.forEach { sub ->
@@ -117,7 +136,7 @@ fun AddObjectScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = title.isNotBlank()
+                enabled = title.isNotBlank() && selectedCategory.isNotBlank()
             ) {
                 Text(text = "Enregistrer dans ma collection", fontSize = 16.sp)
             }

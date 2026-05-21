@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.com.google.devtools.ksp)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.hilt)
 }
 
 android {
@@ -57,7 +59,16 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    // Jetpack Navigation Compose
+    implementation(libs.androidx.navigation.compose)
+
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
+
+    // Hilt
+    implementation(libs.google.hilt.android)
+    ksp(libs.google.hilt.compiler) // Utilisation native de KSP2 !
+    implementation(libs.androidx.hilt.navigation.compose) // Pour lier Hilt à Jetpack Navigation
 }
