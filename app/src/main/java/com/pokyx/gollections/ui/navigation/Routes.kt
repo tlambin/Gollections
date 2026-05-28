@@ -15,4 +15,4 @@ data class ObjectDetailRoute(val itemId: Int)
 
 // Écran d'ajout d'un objet
 @Serializable
-object AddObjectRoute
+data class AddObjectRoute(val preSelectedCategory: String? = null) // <-- Rendu optionnel

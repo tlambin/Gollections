@@ -18,4 +18,16 @@ interface SubCategoryDao {
 
     @Delete
     suspend fun deleteSubCategory(subCategory: SubCategory)
+
+    @Query("UPDATE sub_categories SET categoryName = :newCategory WHERE categoryName = :oldCategory")
+    suspend fun updateSubCategoriesCategory(oldCategory: String, newCategory: String)
+
+    @Query("DELETE FROM sub_categories WHERE categoryName = :categoryName")
+    suspend fun deleteSubCategoriesByCategory(categoryName: String)
+
+    @Query("UPDATE sub_categories SET name = :newName WHERE name = :oldName AND categoryName = :categoryName")
+    suspend fun renameSubCategory(categoryName: String, oldName: String, newName: String)
+
+    @Query("DELETE FROM sub_categories WHERE name = :name AND categoryName = :categoryName")
+    suspend fun deleteSubCategoryByName(categoryName: String, name: String)
 }

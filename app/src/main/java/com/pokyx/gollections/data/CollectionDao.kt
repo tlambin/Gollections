@@ -30,4 +30,16 @@ interface CollectionDao {
 
     @androidx.room.Update
     suspend fun updateItem(item: CollectionItem)
+
+    @Query("UPDATE collection_items SET category = :newCategory WHERE category = :oldCategory")
+    suspend fun updateItemsCategory(oldCategory: String, newCategory: String)
+
+    @Query("DELETE FROM collection_items WHERE category = :categoryName")
+    suspend fun deleteItemsByCategory(categoryName: String)
+
+    @Query("UPDATE collection_items SET subCategory = :newSub WHERE category = :categoryName AND subCategory = :oldSub")
+    suspend fun updateItemsSubCategory(categoryName: String, oldSub: String, newSub: String)
+
+    @Query("UPDATE collection_items SET subCategory = '' WHERE category = :categoryName AND subCategory = :oldSub")
+    suspend fun clearItemsSubCategory(categoryName: String, oldSub: String)
 }

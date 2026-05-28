@@ -3,6 +3,12 @@ package com.pokyx.gollections
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -20,65 +26,77 @@ import com.pokyx.gollections.ui.navigation.ObjectDetailRoute
 import com.pokyx.gollections.ui.theme.GollectionsTheme
 import dagger.hilt.android.AndroidEntryPoint
 
-@AndroidEntryPoint // <--- Indispensable pour que Hilt fonctionne dans cette Activity
+@AndroidEntryPoint // Indispensable pour que Hilt fonctionne dans cette Activity
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
         setContent {
             GollectionsTheme {
-                val navController = rememberNavController()
-
-                NavHost(
-                    navController = navController,
-                    startDestination = DashboardRoute
+                Surface(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .safeDrawingPadding(), // Repousse l'app sous la barre de statut et l'encoche photo
+                    color = MaterialTheme.colorScheme.background
                 ) {
-                    composable<DashboardRoute> {
-                        DashboardScreen(
-                            onCategoryClick = { category ->
-                                navController.navigate(CollectionListRoute(categoryName = category))
-                            },
-                            onAddObjectClick = {
-                                navController.navigate(AddObjectRoute)
-                            }
-                        )
-                    }
+                    val navController = rememberNavController()
 
-                    composable<CollectionListRoute> { backStackEntry ->
-                        val route: CollectionListRoute = backStackEntry.toRoute()
+                    NavHost(
+                        navController = navController,
+                        startDestination = DashboardRoute
+                    ) {
+                        composable<DashboardRoute> {
+                            DashboardScreen(
+                                onCategoryClick = { category ->
+                                    navController.navigate(CollectionListRoute(categoryName = category))
+                                },
+                                onAddObjectClick = {
+                                    navController.navigate(AddObjectRoute()) // Parenthèses ajoutées pour la data class
+                                }
+                            )
+                        }
 
-                        // hiltViewModel() s'occupe de tout : il cherche le ViewModel,
-                        // l'instancie avec ses dépendances (le DAO) et respecte son cycle de vie.
-                        val viewModel: CollectionViewModel = hiltViewModel()
+                        composable<CollectionListRoute> { backStackEntry ->
+                            val route: CollectionListRoute = backStackEntry.toRoute()
+                            val viewModel: CollectionViewModel = hiltViewModel()
 
-                        CollectionListScreen(
-                            categoryName = route.categoryName,
-                            viewModel = viewModel,
-                            onBackClick = { navController.popBackStack() },
-                            onItemClick = { itemId ->
-                                // Navigation vers l'écran détail de l'objet cliqué
-                                navController.navigate(ObjectDetailRoute(itemId = itemId))
-                            }
-                        )
-                    }
+                            CollectionListScreen(
+                                categoryName = route.categoryName,
+                                viewModel = viewModel,
+                                onBackClick = { navController.popBackStack() },
+                                onItemClick = { itemId ->
+                                    navController.navigate(ObjectDetailRoute(itemId = itemId))
+                                },
+                                onAddClick = {
+                                    navController.navigate(AddObjectRoute(preSelectedCategory = route.categoryName))
+                                }
+                            )
+                        }
 
-                    composable<AddObjectRoute> {
-                        val viewModel: CollectionViewModel = hiltViewModel()
+                        composable<AddObjectRoute> { backStackEntry ->
+                            val route: AddObjectRoute = backStackEntry.toRoute()
+                            val viewModel: CollectionViewModel = hiltViewModel()
 
-                        AddObjectScreen(
-                            onBackClick = { navController.popBackStack() },
-                            onSaveClick = { title, category, subCategory, purchaseDate, price ->
-                                viewModel.addItem(title, category, subCategory, purchaseDate, price)
-                                navController.popBackStack()
-                            }
-                        )
-                    }
+                            AddObjectScreen(
+                                preSelectedCategory = route.preSelectedCategory,
+                                onBackClick = { navController.popBackStack() },
+                                // Ajout du paramètre "imageUrl" ici :
+                                onSaveClick = { title, category, subCategory, purchaseDate, price, imageUrl ->
+                                    // Si ta fonction addItem du ViewModel prend déjà en charge l'imageUrl :
+                                    viewModel.addItem(title, category, subCategory, purchaseDate, price, imageUrl)
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
 
-                    composable<ObjectDetailRoute> { backStackEntry ->
-                        val route: ObjectDetailRoute = backStackEntry.toRoute()
-                        ObjectDetailScreen(
-                            itemId = route.itemId,
-                            onBackClick = { navController.popBackStack() }
-                        )
+                        composable<ObjectDetailRoute> { backStackEntry ->
+                            val route: ObjectDetailRoute = backStackEntry.toRoute()
+                            ObjectDetailScreen(
+                                itemId = route.itemId,
+                                onBackClick = { navController.popBackStack() }
+                            )
+                        }
                     }
                 }
             }

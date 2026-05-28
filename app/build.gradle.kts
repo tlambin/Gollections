@@ -52,6 +52,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.material3)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
@@ -71,4 +72,11 @@ dependencies {
     implementation(libs.google.hilt.android)
     ksp(libs.google.hilt.compiler) // Utilisation native de KSP2 !
     implementation(libs.androidx.hilt.navigation.compose) // Pour lier Hilt à Jetpack Navigation
+
+    implementation(libs.coil.compose)
+
+    // Dépendance pour le détourage automatique intelligent (Google ML Kit)
+    implementation(libs.play.services.mlkit.subject.segmentation)
+
+    implementation("androidx.compose.material:material-icons-core")
 }

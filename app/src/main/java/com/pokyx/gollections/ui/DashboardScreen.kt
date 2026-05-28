@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.pokyx.gollections.data.Category
 import com.pokyx.gollections.data.CollectionItem
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Icon
 
 @Composable
 fun DashboardScreen(
@@ -52,11 +55,15 @@ fun DashboardScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddObjectClick,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = CircleShape
+                containerColor = MaterialTheme.colorScheme.primaryContainer, // Harmonisé M3
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                shape = FloatingActionButtonDefaults.shape // Forme M3 officielle
             ) {
-                Text(text = "+", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Ajouter un objet",
+                    modifier = Modifier.size(28.dp)
+                )
             }
         }
     ) { paddingValues ->

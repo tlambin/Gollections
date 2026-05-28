@@ -32,14 +32,20 @@ class CollectionViewModel @Inject constructor(
         return dao.searchItems(query)
     }
 
-    fun addItem(title: String, category: String, subCategory: String, purchaseDate: String, price: String) {
+    fun addItem(title: String, category: String, subCategory: String, purchaseDate: String, price: String,
+                imageUrl: String) {
         viewModelScope.launch {
             val newItem = CollectionItem(
                 title = title,
                 category = category,
                 subCategory = subCategory,
                 purchaseDate = purchaseDate,
-                price = price
+                price = price,
+                imageUrl = imageUrl,
+                status = "", // Valeurs par défaut pour un nouvel objet
+                comment = "",
+                isLoaned = false,
+                loanTo = ""
             )
             dao.insertItem(newItem)
         }
@@ -74,6 +80,36 @@ class CollectionViewModel @Inject constructor(
     fun updateItem(item: CollectionItem) {
         viewModelScope.launch {
             dao.updateItem(item)
+        }
+    }
+
+    fun renameCollection(oldName: String, newName: String) {
+        viewModelScope.launch {
+            categoryDao.renameCategory(oldName, newName)
+            dao.updateItemsCategory(oldName, newName)
+            subCategoryDao.updateSubCategoriesCategory(oldName, newName)
+        }
+    }
+
+    fun deleteCollection(categoryName: String) {
+        viewModelScope.launch {
+            categoryDao.deleteCategoryByName(categoryName)
+            dao.deleteItemsByCategory(categoryName)
+            subCategoryDao.deleteSubCategoriesByCategory(categoryName)
+        }
+    }
+
+    fun renameSubCollection(categoryName: String, oldName: String, newName: String) {
+        viewModelScope.launch {
+            subCategoryDao.renameSubCategory(categoryName, oldName, newName)
+            dao.updateItemsSubCategory(categoryName, oldName, newName)
+        }
+    }
+
+    fun deleteSubCollection(categoryName: String, subName: String) {
+        viewModelScope.launch {
+            subCategoryDao.deleteSubCategoryByName(categoryName, subName)
+            dao.clearItemsSubCategory(categoryName, subName)
         }
     }
 }
