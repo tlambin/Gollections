@@ -14,19 +14,28 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import com.pokyx.gollections.ui.DashboardScreen
-import com.pokyx.gollections.ui.CollectionListScreen
-import com.pokyx.gollections.ui.AddObjectScreen
-import com.pokyx.gollections.ui.CollectionViewModel
-import com.pokyx.gollections.ui.ObjectDetailScreen
+import com.pokyx.gollections.data.CollectionItem
+import com.pokyx.gollections.ui.screens.DashboardScreen
+import com.pokyx.gollections.ui.screens.CollectionListScreen
+import com.pokyx.gollections.ui.screens.AddItemScreen
+import com.pokyx.gollections.ui.screens.ItemDetailScreen
+import com.pokyx.gollections.ui.screens.EditItemScreen
+import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
 import com.pokyx.gollections.ui.navigation.DashboardRoute
 import com.pokyx.gollections.ui.navigation.CollectionListRoute
-import com.pokyx.gollections.ui.navigation.AddObjectRoute
-import com.pokyx.gollections.ui.navigation.ObjectDetailRoute
+import com.pokyx.gollections.ui.navigation.AddItemRoute
+import com.pokyx.gollections.ui.navigation.ItemDetailRoute
+import com.pokyx.gollections.ui.navigation.EditItemRoute
 import com.pokyx.gollections.ui.theme.GollectionsTheme
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.activity.SystemBarStyle
+import android.graphics.Color
 
-@AndroidEntryPoint // Indispensable pour que Hilt fonctionne dans cette Activity
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -36,23 +45,26 @@ class MainActivity : ComponentActivity() {
             GollectionsTheme {
                 Surface(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .safeDrawingPadding(), // Repousse l'app sous la barre de statut et l'encoche photo
+                        .fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
 
                     NavHost(
                         navController = navController,
-                        startDestination = DashboardRoute
+                        startDestination = DashboardRoute,
+                        enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) + fadeIn(tween(300)) },
+                        exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) + fadeOut(tween(300)) },
+                        popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) + fadeIn(tween(300)) },
+                        popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) + fadeOut(tween(300)) }
                     ) {
                         composable<DashboardRoute> {
                             DashboardScreen(
-                                onCategoryClick = { category ->
-                                    navController.navigate(CollectionListRoute(categoryName = category))
+                                onCollectionClick = { collection ->
+                                    navController.navigate(CollectionListRoute(collectionName = collection))
                                 },
-                                onAddObjectClick = {
-                                    navController.navigate(AddObjectRoute()) // Parenthèses ajoutées pour la data class
+                                onAddItemClick = {
+                                    navController.navigate(AddItemRoute())
                                 }
                             )
                         }
@@ -62,39 +74,54 @@ class MainActivity : ComponentActivity() {
                             val viewModel: CollectionViewModel = hiltViewModel()
 
                             CollectionListScreen(
-                                categoryName = route.categoryName,
+                                collectionName = route.collectionName,
                                 viewModel = viewModel,
                                 onBackClick = { navController.popBackStack() },
                                 onItemClick = { itemId ->
-                                    navController.navigate(ObjectDetailRoute(itemId = itemId))
+                                    navController.navigate(ItemDetailRoute(itemId = itemId))
                                 },
-                                onAddClick = {
-                                    navController.navigate(AddObjectRoute(preSelectedCategory = route.categoryName))
+                                onAddItemClick = {
+                                    navController.navigate(AddItemRoute(preSelectedCollection = route.collectionName))
                                 }
                             )
                         }
 
-                        composable<AddObjectRoute> { backStackEntry ->
-                            val route: AddObjectRoute = backStackEntry.toRoute()
+                        composable<AddItemRoute> { backStackEntry ->
+                            val route: AddItemRoute = backStackEntry.toRoute()
                             val viewModel: CollectionViewModel = hiltViewModel()
 
-                            AddObjectScreen(
-                                preSelectedCategory = route.preSelectedCategory,
+                            AddItemScreen(
+                                preSelectedCollection = route.preSelectedCollection,
                                 onBackClick = { navController.popBackStack() },
-                                // Ajout du paramètre "imageUrl" ici :
-                                onSaveClick = { title, category, subCategory, purchaseDate, price, imageUrl ->
-                                    // Si ta fonction addItem du ViewModel prend déjà en charge l'imageUrl :
-                                    viewModel.addItem(title, category, subCategory, purchaseDate, price, imageUrl)
+                                onSaveClick = { newItem ->
+                                    viewModel.insertItem(newItem)
                                     navController.popBackStack()
                                 }
                             )
                         }
 
-                        composable<ObjectDetailRoute> { backStackEntry ->
-                            val route: ObjectDetailRoute = backStackEntry.toRoute()
-                            ObjectDetailScreen(
+                        composable<ItemDetailRoute> { backStackEntry ->
+                            val route: ItemDetailRoute = backStackEntry.toRoute()
+                            ItemDetailScreen(
                                 itemId = route.itemId,
-                                onBackClick = { navController.popBackStack() }
+                                onBackClick = { navController.popBackStack() },
+                                onEditClick = { id ->
+                                    navController.navigate(EditItemRoute(itemId = id))
+                                }
+                            )
+                        }
+
+                        composable<EditItemRoute> { backStackEntry ->
+                            val route: EditItemRoute = backStackEntry.toRoute()
+                            val viewModel: CollectionViewModel = hiltViewModel()
+
+                            EditItemScreen(
+                                itemId = route.itemId,
+                                onBackClick = { navController.popBackStack() },
+                                onSaveClick = { updatedItem ->
+                                    viewModel.updateItem(updatedItem)
+                                    navController.popBackStack()
+                                }
                             )
                         }
                     }

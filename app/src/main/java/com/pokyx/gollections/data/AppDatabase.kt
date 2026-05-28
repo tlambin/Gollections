@@ -10,15 +10,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [CollectionItem::class, Category::class, SubCategory::class], // <-- Ajout de SubCategory
-    version = 5, // <-- Passage à la version 5
+    entities = [CollectionItem::class, Collection::class, Category::class],
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
+    abstract fun collectionItemDao(): CollectionItemDao
     abstract fun collectionDao(): CollectionDao
     abstract fun categoryDao(): CategoryDao
-    abstract fun subCategoryDao(): SubCategoryDao // <-- Ajout
 
     companion object {
         @Volatile
@@ -45,23 +45,20 @@ abstract class AppDatabase : RoomDatabase() {
             super.onCreate(db)
             INSTANCE?.let { database ->
                 CoroutineScope(Dispatchers.IO).launch {
-                    // Catégories par défaut
-                    val catDao = database.categoryDao()
-                    catDao.insertCategory(Category("Blu-ray"))
-                    catDao.insertCategory(Category("Jeux Vidéo"))
-                    catDao.insertCategory(Category("Vinyles"))
+                    val colDao = database.collectionDao()
+                    colDao.insertCollection(Collection("Blu-ray"))
+                    colDao.insertCollection(Collection("Jeux Vidéo"))
+                    colDao.insertCollection(Collection("Vinyles"))
 
-                    // Sous-catégories par défaut
-                    val subCatDao = database.subCategoryDao()
-                    // Pour les Blu-ray
-                    subCatDao.insertSubCategory(SubCategory(name = "4K", categoryName = "Blu-ray"))
-                    subCatDao.insertSubCategory(SubCategory(name = "3D", categoryName = "Blu-ray"))
-                    subCatDao.insertSubCategory(SubCategory(name = "Standard", categoryName = "Blu-ray"))
-                    // Pour les Jeux Vidéo
-                    subCatDao.insertSubCategory(SubCategory(name = "Switch", categoryName = "Jeux Vidéo"))
-                    subCatDao.insertSubCategory(SubCategory(name = "PC", categoryName = "Jeux Vidéo"))
-                    subCatDao.insertSubCategory(SubCategory(name = "PS5", categoryName = "Jeux Vidéo"))
-                    subCatDao.insertSubCategory(SubCategory(name = "Xbox", categoryName = "Jeux Vidéo"))
+                    val catDao = database.categoryDao()
+                    catDao.insertCategory(Category(name = "4K", collectionName = "Blu-ray"))
+                    catDao.insertCategory(Category(name = "3D", collectionName = "Blu-ray"))
+                    catDao.insertCategory(Category(name = "Standard", collectionName = "Blu-ray"))
+
+                    catDao.insertCategory(Category(name = "Switch", collectionName = "Jeux Vidéo"))
+                    catDao.insertCategory(Category(name = "PC", collectionName = "Jeux Vidéo"))
+                    catDao.insertCategory(Category(name = "PS5", collectionName = "Jeux Vidéo"))
+                    catDao.insertCategory(Category(name = "Xbox", collectionName = "Jeux Vidéo"))
                 }
             }
         }

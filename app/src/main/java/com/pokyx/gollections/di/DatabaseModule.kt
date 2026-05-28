@@ -4,7 +4,7 @@ import android.content.Context
 import com.pokyx.gollections.data.AppDatabase
 import com.pokyx.gollections.data.CategoryDao
 import com.pokyx.gollections.data.CollectionDao
-import com.pokyx.gollections.data.SubCategoryDao
+import com.pokyx.gollections.data.CollectionItemDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,6 +24,12 @@ object DatabaseModule {
 
     @Provides
     @Singleton
+    fun provideCollectionItemDao(database: AppDatabase): CollectionItemDao {
+        return database.collectionItemDao()
+    }
+
+    @Provides
+    @Singleton
     fun provideCollectionDao(database: AppDatabase): CollectionDao {
         return database.collectionDao()
     }
@@ -32,11 +38,5 @@ object DatabaseModule {
     @Singleton
     fun provideCategoryDao(database: AppDatabase): CategoryDao {
         return database.categoryDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideSubCategoryDao(database: AppDatabase): SubCategoryDao {
-        return database.subCategoryDao()
     }
 }

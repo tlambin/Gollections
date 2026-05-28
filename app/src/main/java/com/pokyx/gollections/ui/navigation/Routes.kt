@@ -2,17 +2,17 @@ package com.pokyx.gollections.ui.navigation
 
 import kotlinx.serialization.Serializable
 
-// Écran principal (Dashboard)
 @Serializable
 object DashboardRoute
 
-// Écran de liste, qui prend obligatoirement un argument de type String
 @Serializable
-data class CollectionListRoute(val categoryName: String)
+data class CollectionListRoute(val collectionName: String)
 
 @Serializable
-data class ObjectDetailRoute(val itemId: Int)
+data class ItemDetailRoute(val itemId: Int)
 
-// Écran d'ajout d'un objet
 @Serializable
-data class AddObjectRoute(val preSelectedCategory: String? = null) // <-- Rendu optionnel
+data class AddItemRoute(val preSelectedCollection: String? = null)
+
+@Serializable
+data class EditItemRoute(val itemId: Int)

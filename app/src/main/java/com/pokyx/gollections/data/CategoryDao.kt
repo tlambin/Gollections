@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface CategoryDao {
 
-    @Query("SELECT * FROM categories ORDER BY name ASC")
-    fun getAllCategories(): Flow<List<Category>>
+    @Query("SELECT * FROM categories WHERE collectionName = :collectionName ORDER BY name ASC")
+    fun getCategoriesByCollection(collectionName: String): Flow<List<Category>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertCategory(category: Category)
@@ -19,9 +19,15 @@ interface CategoryDao {
     @Delete
     suspend fun deleteCategory(category: Category)
 
-    @Query("UPDATE categories SET name = :newName WHERE name = :oldName")
-    suspend fun renameCategory(oldName: String, newName: String)
+    @Query("UPDATE categories SET collectionName = :newCollection WHERE collectionName = :oldCollection")
+    suspend fun updateCategoriesCollection(oldCollection: String, newCollection: String)
 
-    @Query("DELETE FROM categories WHERE name = :name")
-    suspend fun deleteCategoryByName(name: String)
+    @Query("DELETE FROM categories WHERE collectionName = :collectionName")
+    suspend fun deleteCategoriesByCollection(collectionName: String)
+
+    @Query("UPDATE categories SET name = :newName WHERE name = :oldName AND collectionName = :collectionName")
+    suspend fun renameCategory(collectionName: String, oldName: String, newName: String)
+
+    @Query("DELETE FROM categories WHERE name = :name AND collectionName = :collectionName")
+    suspend fun deleteCategoryByName(collectionName: String, name: String)
 }

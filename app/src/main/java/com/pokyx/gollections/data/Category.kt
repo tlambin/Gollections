@@ -5,5 +5,7 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "categories")
 data class Category(
-    @PrimaryKey val name: String // Le nom de la catégorie sert de clé unique
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val collectionName: String // Lien vers la collection parente (ex: "Blu-ray")
 )
