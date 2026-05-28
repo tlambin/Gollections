@@ -7,9 +7,14 @@ import androidx.room.PrimaryKey
 data class CollectionItem(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val title: String,
-    val year: String,
     val category: String,       // Blu-ray, Vinyles, Jeux Vidéo
     val subCategory: String,    // 4K, PS5, Switch, etc.
     val isLoaned: Boolean = false,
-    val loanTo: String = ""
+    val loanTo: String = "",
+
+    val purchaseDate: String = "",       // Date d'achat
+    val price: String = "",              // Prix d'achat
+    val status: String = "Non commencé", // "Non commencé", "En cours", "Terminé"
+    val comment: String = "",            // Avis ou notes personnelles
+    val imageUrl: String = ""            // Gestion d'images / affiches
 )

@@ -24,4 +24,10 @@ interface CollectionDao {
 
     @Delete
     suspend fun deleteItem(item: CollectionItem)
+
+    @Query("SELECT * FROM collection_items WHERE id = :id")
+    fun getItemById(id: Int): kotlinx.coroutines.flow.Flow<CollectionItem?>
+
+    @androidx.room.Update
+    suspend fun updateItem(item: CollectionItem)
 }

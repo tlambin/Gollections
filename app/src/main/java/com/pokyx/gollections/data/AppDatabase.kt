@@ -9,11 +9,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@Database(entities = [CollectionItem::class, Category::class], version = 2, exportSchema = false) // <-- Version passe à 2, ajout de Category
+@Database(
+    entities = [CollectionItem::class, Category::class, SubCategory::class], // <-- Ajout de SubCategory
+    version = 5, // <-- Passage à la version 5
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun collectionDao(): CollectionDao
-    abstract fun categoryDao(): CategoryDao // <-- AJOUT
+    abstract fun categoryDao(): CategoryDao
+    abstract fun subCategoryDao(): SubCategoryDao // <-- Ajout
 
     companion object {
         @Volatile
@@ -26,8 +31,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "gollections_database"
                 )
-                    .fallbackToDestructiveMigration(dropAllTables = true) // Réinitialise proprement la BDD en dev si la structure change
-                    .addCallback(AppDatabaseCallback()) // <-- AJOUT : Alimentation initiale
+                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .addCallback(AppDatabaseCallback())
                     .build()
                 INSTANCE = instance
                 instance
@@ -35,16 +40,28 @@ abstract class AppDatabase : RoomDatabase() {
         }
     }
 
-    // Callback pour insérer les catégories par défaut lors de la toute première création de la BDD
     private class AppDatabaseCallback : RoomDatabase.Callback() {
         override fun onCreate(db: SupportSQLiteDatabase) {
             super.onCreate(db)
             INSTANCE?.let { database ->
                 CoroutineScope(Dispatchers.IO).launch {
-                    val dao = database.categoryDao()
-                    dao.insertCategory(Category("Blu-ray"))
-                    dao.insertCategory(Category("Jeux Vidéo"))
-                    dao.insertCategory(Category("Vinyles"))
+                    // Catégories par défaut
+                    val catDao = database.categoryDao()
+                    catDao.insertCategory(Category("Blu-ray"))
+                    catDao.insertCategory(Category("Jeux Vidéo"))
+                    catDao.insertCategory(Category("Vinyles"))
+
+                    // Sous-catégories par défaut
+                    val subCatDao = database.subCategoryDao()
+                    // Pour les Blu-ray
+                    subCatDao.insertSubCategory(SubCategory(name = "4K", categoryName = "Blu-ray"))
+                    subCatDao.insertSubCategory(SubCategory(name = "3D", categoryName = "Blu-ray"))
+                    subCatDao.insertSubCategory(SubCategory(name = "Standard", categoryName = "Blu-ray"))
+                    // Pour les Jeux Vidéo
+                    subCatDao.insertSubCategory(SubCategory(name = "Switch", categoryName = "Jeux Vidéo"))
+                    subCatDao.insertSubCategory(SubCategory(name = "PC", categoryName = "Jeux Vidéo"))
+                    subCatDao.insertSubCategory(SubCategory(name = "PS5", categoryName = "Jeux Vidéo"))
+                    subCatDao.insertSubCategory(SubCategory(name = "Xbox", categoryName = "Jeux Vidéo"))
                 }
             }
         }

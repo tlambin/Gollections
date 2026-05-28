@@ -145,7 +145,7 @@ fun DashboardScreen(
                     items(searchResults) { item ->
                         ListItem(
                             headlineContent = { Text(item.title, fontWeight = FontWeight.SemiBold) },
-                            supportingContent = { Text("${item.category} • ${item.subCategory} (${item.year})") },
+                            supportingContent = { Text("${item.category} • ${item.subCategory}") },
                             leadingContent = { Text(getEmojiForCategory(item.category), fontSize = 24.sp) },
                             modifier = Modifier
                                 .padding(horizontal = 24.dp)

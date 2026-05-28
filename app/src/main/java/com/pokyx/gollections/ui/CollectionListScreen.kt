@@ -19,25 +19,32 @@ import androidx.compose.ui.unit.sp
 fun CollectionListScreen(
     categoryName: String,
     viewModel: CollectionViewModel,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onItemClick: (Int) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedSub by remember { mutableStateOf("Tous") }
 
+    // États pour le dialogue de création de sous-collection
+    var showAddSubDialog by remember { mutableStateOf(false) }
+    var newSubName by remember { mutableStateOf("") }
+
     // On écoute la BDD en temps réel pour cette catégorie précise
     val allCategoryItems by viewModel.getItemsByCategory(categoryName).collectAsState(initial = emptyList())
 
-    // Filtrage dynamique combiné (Format/Plateforme + Recherche textuelle)
+    // On écoute les sous-catégories dynamiques de la BDD
+    val dbSubCategories by viewModel.getSubCategoriesByCategory(categoryName).collectAsState(initial = emptyList())
+
+    // On fusionne l'option universelle "Tous" avec les données de la BDD
+    val subCategories = remember(dbSubCategories) {
+        listOf("Tous") + dbSubCategories.map { it.name }
+    }
+
+    // Filtrage dynamique combiné
     val filteredItems = allCategoryItems.filter { item ->
         val matchesSub = selectedSub == "Tous" || item.subCategory == selectedSub
         val matchesSearch = searchQuery.isEmpty() || item.title.contains(searchQuery, ignoreCase = true)
         matchesSub && matchesSearch
-    }
-
-    val subCategories = when (categoryName) {
-        "Blu-ray" -> listOf("Tous", "4K", "3D", "Standard")
-        "Jeux Vidéo" -> listOf("Tous", "Switch", "PC", "PS5", "Xbox")
-        else -> listOf("Tous")
     }
 
     Scaffold(
@@ -76,10 +83,14 @@ fun CollectionListScreen(
                 }
             )
 
-            // Barre de puces de filtrage
+            // Barre de puces de filtrage + Bouton d'ajout
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 subCategories.forEach { sub ->
                     FilterChip(
@@ -88,6 +99,14 @@ fun CollectionListScreen(
                         label = { Text(sub) }
                     )
                 }
+
+                // Puce Spéciale "➕" pour ajouter une sous-collection
+                InputChip(
+                    selected = false,
+                    onClick = { showAddSubDialog = true },
+                    label = { Text("➕", fontWeight = FontWeight.Bold) },
+                    colors = InputChipDefaults.inputChipColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                )
             }
 
             // Liste des vrais objets de la BDD
@@ -105,7 +124,9 @@ fun CollectionListScreen(
                 } else {
                     items(filteredItems) { item ->
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onItemClick(item.id) },
                             shape = RoundedCornerShape(8.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                         ) {
@@ -113,34 +134,83 @@ fun CollectionListScreen(
                                 modifier = Modifier.padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val emoji = when(item.category) {
-                                    "Blu-ray" -> "🎬"
-                                    "Vinyles" -> "🎵"
-                                    "Jeux Vidéo" -> "🎮"
-                                    else -> "📦"
-                                }
-                                Text(text = emoji, fontSize = 24.sp)
+                                Text(text = getLocalEmojiForCategory(item.category), fontSize = 24.sp)
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(text = item.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                    Row {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                         if (item.subCategory.isNotEmpty()) {
-                                            Text(text = "${item.subCategory} • ", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                                            Text(text = item.subCategory, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
                                         }
-                                        Text(text = "Année : ${item.year.ifBlank { "Inconnue" }}", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                                        if (item.status != "Non commencé") {
+                                            Text(
+                                                text = " • ${item.status}",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
                                 }
-                                // BONUS : Bouton de suppression directe
-                                Text(
-                                    text = "🗑️",
-                                    modifier = Modifier.clickable { viewModel.deleteItem(item) }.padding(8.dp),
-                                    fontSize = 16.sp
-                                )
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Boîte de dialogue pour créer une sous-collection
+    if (showAddSubDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showAddSubDialog = false
+                newSubName = ""
+            },
+            title = { Text("Nouvelle Sous-Collection") },
+            text = {
+                OutlinedTextField(
+                    value = newSubName,
+                    onValueChange = { newSubName = it },
+                    label = { Text("Nom (ex: Steelbook, PS4, Cassette...)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newSubName.isNotBlank()) {
+                            viewModel.addSubCategory(newSubName.trim(), categoryName)
+                            showAddSubDialog = false
+                            newSubName = ""
+                        }
+                    }
+                ) {
+                    Text("Créer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAddSubDialog = false
+                    newSubName = ""
+                }) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+}
+
+private fun getLocalEmojiForCategory(categoryName: String): String {
+    return when (categoryName.lowercase().trim()) {
+        "blu-ray", "bluray", "film", "films", "cinéma", "cinema" -> "🎬"
+        "vinyles", "vinyle", "musique", "disques", "disque", "cd" -> "🎵"
+        "jeux vidéo", "jeux", "jeux video", "gaming", "switch", "ps5" -> "🎮"
+        "livres", "livre", "mangas", "manga", "bd", "romans" -> "📚"
+        "figurines", "figurine", "pop" -> "🧸"
+        "jeux de société", "jeux de societe", "cartes" -> "🎲"
+        else -> "📦"
     }
 }

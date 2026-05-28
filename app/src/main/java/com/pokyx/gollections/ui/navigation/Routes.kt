@@ -10,6 +10,9 @@ object DashboardRoute
 @Serializable
 data class CollectionListRoute(val categoryName: String)
 
+@Serializable
+data class ObjectDetailRoute(val itemId: Int)
+
 // Écran d'ajout d'un objet
 @Serializable
 object AddObjectRoute

@@ -12,9 +12,11 @@ import com.pokyx.gollections.ui.DashboardScreen
 import com.pokyx.gollections.ui.CollectionListScreen
 import com.pokyx.gollections.ui.AddObjectScreen
 import com.pokyx.gollections.ui.CollectionViewModel
+import com.pokyx.gollections.ui.ObjectDetailScreen
 import com.pokyx.gollections.ui.navigation.DashboardRoute
 import com.pokyx.gollections.ui.navigation.CollectionListRoute
 import com.pokyx.gollections.ui.navigation.AddObjectRoute
+import com.pokyx.gollections.ui.navigation.ObjectDetailRoute
 import com.pokyx.gollections.ui.theme.GollectionsTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -51,7 +53,11 @@ class MainActivity : ComponentActivity() {
                         CollectionListScreen(
                             categoryName = route.categoryName,
                             viewModel = viewModel,
-                            onBackClick = { navController.popBackStack() }
+                            onBackClick = { navController.popBackStack() },
+                            onItemClick = { itemId ->
+                                // Navigation vers l'écran détail de l'objet cliqué
+                                navController.navigate(ObjectDetailRoute(itemId = itemId))
+                            }
                         )
                     }
 
@@ -60,10 +66,18 @@ class MainActivity : ComponentActivity() {
 
                         AddObjectScreen(
                             onBackClick = { navController.popBackStack() },
-                            onSaveClick = { title, year, category, subCategory ->
-                                viewModel.addItem(title, year, category, subCategory)
+                            onSaveClick = { title, category, subCategory, purchaseDate, price ->
+                                viewModel.addItem(title, category, subCategory, purchaseDate, price)
                                 navController.popBackStack()
                             }
+                        )
+                    }
+
+                    composable<ObjectDetailRoute> { backStackEntry ->
+                        val route: ObjectDetailRoute = backStackEntry.toRoute()
+                        ObjectDetailScreen(
+                            itemId = route.itemId,
+                            onBackClick = { navController.popBackStack() }
                         )
                     }
                 }

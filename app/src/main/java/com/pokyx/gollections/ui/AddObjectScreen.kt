@@ -13,38 +13,37 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun AddObjectScreen(
     onBackClick: () -> Unit,
-    onSaveClick: (title: String, year: String, category: String, subCategory: String) -> Unit,
-    viewModel: CollectionViewModel = hiltViewModel() // Injection automatique via Hilt
+    onSaveClick: (title: String, category: String, subCategory: String, purchaseDate: String, price: String) -> Unit, // <-- Modifié ici
+    viewModel: CollectionViewModel = hiltViewModel()
 ) {
     var title by remember { mutableStateOf("") }
-    var year by remember { mutableStateOf("") }
 
-    // Récupération et transformation du flux des catégories de la BDD
+    // Génération automatique de la date du jour (ex: 21/05/2026)
+    val todayDate = remember { LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) }
+    var purchaseDate by remember { mutableStateOf(todayDate) }
+    var price by remember { mutableStateOf("") }
+
     val categoriesList by viewModel.allCategories.collectAsState(initial = emptyList())
     val categories = categoriesList.map { it.name }
 
     var selectedCategory by remember { mutableStateOf("") }
     var selectedSubCategory by remember { mutableStateOf("") }
 
-    // Dès que les catégories sont chargées, on sélectionne la première par défaut
     LaunchedEffect(categories) {
         if (selectedCategory.isEmpty() && categories.isNotEmpty()) {
             selectedCategory = categories.first()
         }
     }
 
-    // Détermination des sous-catégories selon la catégorie principale
-    val subCategories = when (selectedCategory) {
-        "Blu-ray" -> listOf("4K", "3D", "Standard")
-        "Jeux Vidéo" -> listOf("Switch", "PC", "PS5", "Xbox")
-        else -> emptyList() // Pas de sous-catégorie pour les catégories personnalisées (ex: Vinyles, Livres...)
-    }
+    val dbSubCategories by viewModel.getSubCategoriesByCategory(selectedCategory).collectAsState(initial = emptyList())
+    val subCategories = dbSubCategories.map { it.name }
 
-    // Force la première sous-catégorie si on change de catégorie principale
     LaunchedEffect(selectedCategory) {
         selectedSubCategory = subCategories.firstOrNull() ?: ""
     }
@@ -74,6 +73,7 @@ fun AddObjectScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            // Champ Titre
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -82,20 +82,33 @@ fun AddObjectScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            OutlinedTextField(
-                value = year,
-                onValueChange = { year = it },
-                label = { Text("Année de sortie") },
-                modifier = Modifier.fillMaxWidth()
-            )
+            // AJOUT : Section Informations d'acquisition côte à côte
+            Text(text = "Informations d'acquisition", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = price,
+                    onValueChange = { price = it },
+                    label = { Text("Prix (€) - Optionnel") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = purchaseDate,
+                    onValueChange = { purchaseDate = it },
+                    label = { Text("Date d'achat") },
+                    placeholder = { Text("JJ/MM/AAAA") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
 
-            // 1. Choix Catégorie Principale (DYNAMIQUE)
+            // 1. Choix Catégorie Principale
             if (categories.isNotEmpty()) {
                 Text(text = "Catégorie", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()), // Devient scrollable horizontalement si la liste grandit !
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     categories.forEach { category ->
@@ -132,7 +145,8 @@ fun AddObjectScreen(
             Button(
                 onClick = {
                     if (title.isNotBlank()) {
-                        onSaveClick(title, year, selectedCategory, selectedSubCategory)
+                        // Envoi de toutes les données validées
+                        onSaveClick(title, selectedCategory, selectedSubCategory, purchaseDate.trim(), price.trim())
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
