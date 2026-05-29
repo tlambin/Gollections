@@ -1,14 +1,27 @@
 package com.pokyx.gollections.data
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "collection_items")
+@Entity(
+    tableName = "collection_items",
+    foreignKeys = [
+        ForeignKey(
+            entity = Collection::class,
+            parentColumns = ["id"],
+            childColumns = ["collectionId"],
+            onDelete = ForeignKey.CASCADE // Gère automatiquement la suppression si le parent est supprimé
+        )
+    ],
+    indices = [Index(value = ["collectionId"])]
+)
 data class CollectionItem(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val title: String,
-    val collection: String,     // Ex: Blu-ray, Vinyles, Jeux Vidéo (remplace category)
-    val category: String,       // Ex: 4K, PS5, Switch (remplace subCategory)
+    val collectionId: Long,
+    val tags: String,
 
     val isLoaned: Boolean = false,
     val loanTo: String = "",

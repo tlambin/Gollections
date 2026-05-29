@@ -14,8 +14,8 @@ interface CollectionItemDao {
     @Query("SELECT * FROM collection_items ORDER BY title ASC")
     fun getAllItems(): Flow<List<CollectionItem>>
 
-    @Query("SELECT * FROM collection_items WHERE collection = :collectionName ORDER BY title ASC")
-    fun getItemsByCollection(collectionName: String): Flow<List<CollectionItem>>
+    @Query("SELECT * FROM collection_items WHERE collectionId = :collectionId ORDER BY title ASC")
+    fun getItemsByCollection(collectionId: Long): Flow<List<CollectionItem>>
 
     @Query("SELECT * FROM collection_items WHERE title LIKE '%' || :searchQuery || '%' ORDER BY title ASC")
     fun searchItems(searchQuery: String): Flow<List<CollectionItem>>
@@ -32,15 +32,6 @@ interface CollectionItemDao {
     @Update
     suspend fun updateItem(item: CollectionItem)
 
-    @Query("UPDATE collection_items SET collection = :newCollection WHERE collection = :oldCollection")
-    suspend fun updateItemsCollection(oldCollection: String, newCollection: String)
-
-    @Query("DELETE FROM collection_items WHERE collection = :collectionName")
-    suspend fun deleteItemsByCollection(collectionName: String)
-
-    @Query("UPDATE collection_items SET category = :newCategory WHERE collection = :collectionName AND category = :oldCategory")
-    suspend fun updateItemsCategory(collectionName: String, oldCategory: String, newCategory: String)
-
-    @Query("UPDATE collection_items SET category = '' WHERE collection = :collectionName AND category = :oldCategory")
-    suspend fun clearItemsCategory(collectionName: String, oldCategory: String)
+    @Query("SELECT * FROM collection_items WHERE tags LIKE '%' || :tag || '%'")
+    suspend fun getItemsWithTagSync(tag: String): List<CollectionItem>
 }

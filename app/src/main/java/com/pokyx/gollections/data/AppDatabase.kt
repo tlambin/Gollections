@@ -10,15 +10,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [CollectionItem::class, Collection::class, Category::class],
-    version = 7,
+    entities = [CollectionItem::class, Collection::class, Tag::class],
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun collectionItemDao(): CollectionItemDao
     abstract fun collectionDao(): CollectionDao
-    abstract fun categoryDao(): CategoryDao
+    abstract fun tagDao(): TagDao
 
     companion object {
         @Volatile
@@ -46,19 +46,24 @@ abstract class AppDatabase : RoomDatabase() {
             INSTANCE?.let { database ->
                 CoroutineScope(Dispatchers.IO).launch {
                     val colDao = database.collectionDao()
-                    colDao.insertCollection(Collection("Blu-ray"))
-                    colDao.insertCollection(Collection("Jeux Vidéo"))
-                    colDao.insertCollection(Collection("Vinyles"))
 
-                    val catDao = database.categoryDao()
-                    catDao.insertCategory(Category(name = "4K", collectionName = "Blu-ray"))
-                    catDao.insertCategory(Category(name = "3D", collectionName = "Blu-ray"))
-                    catDao.insertCategory(Category(name = "Standard", collectionName = "Blu-ray"))
+                    val idBluRay = 1L
+                    val idJeuxVideo = 2L
+                    val idVinyles = 3L
 
-                    catDao.insertCategory(Category(name = "Switch", collectionName = "Jeux Vidéo"))
-                    catDao.insertCategory(Category(name = "PC", collectionName = "Jeux Vidéo"))
-                    catDao.insertCategory(Category(name = "PS5", collectionName = "Jeux Vidéo"))
-                    catDao.insertCategory(Category(name = "Xbox", collectionName = "Jeux Vidéo"))
+                    colDao.insertCollection(Collection(id = idBluRay, name = "Blu-ray"))
+                    colDao.insertCollection(Collection(id = idJeuxVideo, name = "Jeux Vidéo"))
+                    colDao.insertCollection(Collection(id = idVinyles, name = "Vinyles"))
+
+                    val tagDao = database.tagDao()
+                    tagDao.insertTag(Tag(name = "4K", collectionId = idBluRay))
+                    tagDao.insertTag(Tag(name = "3D", collectionId = idBluRay))
+                    tagDao.insertTag(Tag(name = "Steelbook", collectionId = idBluRay))
+
+                    tagDao.insertTag(Tag(name = "Switch", collectionId = idJeuxVideo))
+                    tagDao.insertTag(Tag(name = "PC", collectionId = idJeuxVideo))
+                    tagDao.insertTag(Tag(name = "PS5", collectionId = idJeuxVideo))
+                    tagDao.insertTag(Tag(name = "Xbox", collectionId = idJeuxVideo))
                 }
             }
         }

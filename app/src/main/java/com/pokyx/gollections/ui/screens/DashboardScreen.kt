@@ -24,45 +24,34 @@ import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Icon
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.Add
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
-    onCollectionClick: (String) -> Unit,
+    onCollectionClick: (Long) -> Unit,
     onAddItemClick: () -> Unit,
     viewModel: CollectionViewModel = hiltViewModel()
 ) {
-    val collections by viewModel.collections.collectAsState()
+    val rootCollections by viewModel.rootCollections.collectAsState()
+    val allCollections by viewModel.collections.collectAsState()
     val allItems by viewModel.allItems.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchedItems.collectAsState()
+
     var showAddCollectionDialog by remember { mutableStateOf(false) }
     var newCollectionName by remember { mutableStateOf("") }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection), // On connecte le scroll au scaffold
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = {
-                    Text(
-                        text = "Gollections",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+                title = { Text(text = "Gollections", fontWeight = FontWeight.Bold) },
                 scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         },
         floatingActionButton = { FloatingActionButton(onClick = onAddItemClick, containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) { Icon(Icons.Default.Add, contentDescription = "Ajouter", modifier = Modifier.size(28.dp)) } }
@@ -70,44 +59,28 @@ fun DashboardScreen(
         LazyColumn(modifier = Modifier.fillMaxSize().padding(paddingValues), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             item {
                 TextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.updateSearchQuery(it) }, // ou { searchQuery = it } dans CollectionListScreen
-                    placeholder = { Text("Rechercher...") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 8.dp), // 16.dp au lieu de 24.dp dans CollectionListScreen
-                    shape = CircleShape,
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Rechercher", tint = MaterialTheme.colorScheme.primary) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.updateSearchQuery("") }) { // ou { searchQuery = "" }
-                                Icon(Icons.Default.Clear, contentDescription = "Effacer")
-                            }
-                        }
-                    },
-                    colors = TextFieldDefaults.colors(
-                        focusedIndicatorColor = Color.Transparent, // Enlève la ligne du bas
-                        unfocusedIndicatorColor = Color.Transparent,
-                        disabledIndicatorColor = Color.Transparent,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    singleLine = true
+                    value = searchQuery, onValueChange = { viewModel.updateSearchQuery(it) }, placeholder = { Text("Rechercher...") }, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), shape = CircleShape, leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Rechercher", tint = MaterialTheme.colorScheme.primary) }, trailingIcon = { if (searchQuery.isNotEmpty()) { IconButton(onClick = { viewModel.updateSearchQuery("") }) { Icon(Icons.Default.Clear, contentDescription = "Effacer") } } },
+                    colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant), singleLine = true
                 )
             }
 
             if (searchQuery.isEmpty()) {
-                item { StatsSlider(totalItems = allItems.size, totalCollections = collections.size, loanedItems = allItems.count { it.isLoaned }) }
+                item { StatsSlider(totalItems = allItems.size, totalCollections = rootCollections.size, loanedItems = allItems.count { it.isLoaned }) }
                 item { Text(text = "Mes Collections", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
-                item { CollectionsGrid(collections = collections, items = allItems, onCollectionClick = onCollectionClick, onAddCollectionClick = { showAddCollectionDialog = true }) }
+                item { CollectionsGrid(collections = rootCollections, allCollections = allCollections, items = allItems, onCollectionClick = onCollectionClick, onAddCollectionClick = { showAddCollectionDialog = true }, viewModel = viewModel) }
             } else {
                 item { Text(text = "Résultats de recherche (${searchResults.size})", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
                 if (searchResults.isEmpty()) { item { Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { Text("Aucun objet trouvé 😕", color = Color.Gray) } } }
                 else {
                     items(searchResults) { item ->
+                        val parentCol = allCollections.find { it.id == item.collectionId }
+                        val colName = parentCol?.name ?: "Inconnu"
+                        val tagsStr = item.tags.replace(",", " • ")
                         ListItem(
-                            headlineContent = { Text(item.title, fontWeight = FontWeight.SemiBold) }, supportingContent = { Text("${item.collection} • ${item.category}") }, leadingContent = { Text(getEmojiForCollection(item.collection), fontSize = 24.sp) },
-                            modifier = Modifier.padding(horizontal = 24.dp).clickable { onCollectionClick(item.collection) }
+                            headlineContent = { Text(item.title, fontWeight = FontWeight.SemiBold) },
+                            supportingContent = { if (tagsStr.isNotEmpty()) Text("$colName • $tagsStr") else Text(colName) },
+                            leadingContent = { Text(getEmojiForCollection(colName), fontSize = 24.sp) },
+                            modifier = Modifier.padding(horizontal = 24.dp).clickable { onCollectionClick(item.collectionId) }
                         )
                     }
                 }
@@ -115,12 +88,7 @@ fun DashboardScreen(
         }
     }
 
-    if (showAddCollectionDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddCollectionDialog = false; newCollectionName = "" }, title = { Text("Nouvelle Collection") }, text = { OutlinedTextField(value = newCollectionName, onValueChange = { newCollectionName = it }, label = { Text("Nom (ex: Livres, Mangas...)") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
-            confirmButton = { Button(onClick = { if (newCollectionName.isNotBlank()) { viewModel.insertCollection(newCollectionName.trim()); showAddCollectionDialog = false; newCollectionName = "" } }) { Text("Créer") } }, dismissButton = { TextButton(onClick = { showAddCollectionDialog = false; newCollectionName = "" }) { Text("Annuler") } }
-        )
-    }
+    if (showAddCollectionDialog) { AlertDialog(onDismissRequest = { showAddCollectionDialog = false; newCollectionName = "" }, title = { Text("Nouvelle Collection") }, text = { OutlinedTextField(value = newCollectionName, onValueChange = { newCollectionName = it }, label = { Text("Nom (ex: Livres, Mangas...)") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }, confirmButton = { Button(onClick = { if (newCollectionName.isNotBlank()) { viewModel.insertCollection(newCollectionName.trim(), parentId = null); showAddCollectionDialog = false; newCollectionName = "" } }) { Text("Créer") } }, dismissButton = { TextButton(onClick = { showAddCollectionDialog = false; newCollectionName = "" }) { Text("Annuler") } }) }
 }
 
 @Composable
@@ -132,7 +100,7 @@ fun StatsSlider(totalItems: Int, totalCollections: Int, loanedItems: Int) {
                 Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
                     when (page) {
                         0 -> StatCardContent(title = "Total Objets", value = totalItems.toString(), sub = "Tous médias confondus")
-                        1 -> StatCardContent(title = "Collections distinctes", value = totalCollections.toString(), sub = "Groupes enregistrés")
+                        1 -> StatCardContent(title = "Collections racines", value = totalCollections.toString(), sub = "Dossiers principaux")
                         2 -> StatCardContent(title = "Prêts en cours", value = loanedItems.toString(), sub = "Objets confiés à des proches")
                     }
                 }
@@ -146,30 +114,24 @@ fun StatsSlider(totalItems: Int, totalCollections: Int, loanedItems: Int) {
 }
 
 @Composable
-fun StatCardContent(title: String, value: String, sub: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = title, fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
-        Text(text = value, fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-        Text(text = sub, fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f))
-    }
-}
+fun StatCardContent(title: String, value: String, sub: String) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(text = title, fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)); Text(text = value, fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer); Text(text = sub, fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)) } }
 
 @Composable
-fun CollectionsGrid(collections: List<Collection>, items: List<CollectionItem>, onCollectionClick: (String) -> Unit, onAddCollectionClick: () -> Unit) {
+fun CollectionsGrid(collections: List<Collection>, allCollections: List<Collection>, items: List<CollectionItem>, onCollectionClick: (Long) -> Unit, onAddCollectionClick: () -> Unit, viewModel: CollectionViewModel) {
     val totalSlots = collections.size + 1
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         for (i in 0 until totalSlots step 2) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (i < collections.size) CollectionItemCard(collections[i], items, onCollectionClick, Modifier.weight(1f)) else if (i == collections.size) AddCollectionCard(onClick = onAddCollectionClick, modifier = Modifier.weight(1f))
-                if (i + 1 < collections.size) CollectionItemCard(collections[i + 1], items, onCollectionClick, Modifier.weight(1f)) else if (i + 1 == collections.size) AddCollectionCard(onClick = onAddCollectionClick, modifier = Modifier.weight(1f)) else Box(modifier = Modifier.weight(1f))
+                if (i < collections.size) CollectionItemCard(collections[i], allCollections, items, onCollectionClick, Modifier.weight(1f), viewModel) else if (i == collections.size) AddCollectionCard(onClick = onAddCollectionClick, modifier = Modifier.weight(1f))
+                if (i + 1 < collections.size) CollectionItemCard(collections[i + 1], allCollections, items, onCollectionClick, Modifier.weight(1f), viewModel) else if (i + 1 == collections.size) AddCollectionCard(onClick = onAddCollectionClick, modifier = Modifier.weight(1f)) else Box(modifier = Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-fun CollectionItemCard(collection: Collection, items: List<CollectionItem>, onCollectionClick: (String) -> Unit, modifier: Modifier = Modifier) {
-    val count = items.count { it.collection == collection.name }
+fun CollectionItemCard(collection: Collection, allCollections: List<Collection>, items: List<CollectionItem>, onCollectionClick: (Long) -> Unit, modifier: Modifier = Modifier, viewModel: CollectionViewModel) {
+    val count = viewModel.getRecursiveItemCount(collection.id, allCollections, items)
     val unit = when (collection.name.lowercase()) {
         "blu-ray", "films" -> if (count <= 1) "film" else "films"
         "vinyles" -> if (count <= 1) "album" else "albums"
@@ -177,46 +139,20 @@ fun CollectionItemCard(collection: Collection, items: List<CollectionItem>, onCo
         "livres", "mangas" -> if (count <= 1) "livre" else "livres"
         else -> if (count <= 1) "objet" else "objets"
     }
-    CollectionCard(title = collection.name, count = "$count $unit", emoji = getEmojiForCollection(collection.name), onClick = { onCollectionClick(collection.name) }, modifier = modifier)
+    CollectionCard(title = collection.name, count = "$count $unit", emoji = getEmojiForCollection(collection.name), onClick = { onCollectionClick(collection.id) }, modifier = modifier)
 }
 
 @Composable
 fun CollectionCard(title: String, count: String, emoji: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(modifier = modifier.height(120.dp).clickable { onClick() }, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Text(text = emoji, fontSize = 28.sp)
-            Column { Text(text = title, fontWeight = FontWeight.Bold, fontSize = 16.sp); Text(text = count, fontSize = 12.sp, color = Color.Gray) }
-        }
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) { Text(text = emoji, fontSize = 28.sp); Column { Text(text = title, fontWeight = FontWeight.Bold, fontSize = 16.sp); Text(text = count, fontSize = 12.sp, color = Color.Gray) } }
     }
 }
 
 @Composable
 fun AddCollectionCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier.height(120.dp).clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Remplacement de l'émoji par l'icône officielle M3
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "Ajouter une collection",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Nouvelle collection",
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
+    Card(modifier = modifier.height(120.dp).clickable { onClick() }, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) { Icon(imageVector = Icons.Default.Add, contentDescription = "Ajouter une collection", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp)); Spacer(modifier = Modifier.height(8.dp)); Text(text = "Nouvelle", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary) }
     }
 }
 

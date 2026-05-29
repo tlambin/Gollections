@@ -2,9 +2,9 @@ package com.pokyx.gollections.di
 
 import android.content.Context
 import com.pokyx.gollections.data.AppDatabase
-import com.pokyx.gollections.data.CategoryDao
 import com.pokyx.gollections.data.CollectionDao
 import com.pokyx.gollections.data.CollectionItemDao
+import com.pokyx.gollections.data.TagDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -15,28 +15,16 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
-
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
-        return AppDatabase.getDatabase(context)
-    }
+    fun provideDatabase(@ApplicationContext context: Context): AppDatabase = AppDatabase.getDatabase(context)
 
     @Provides
-    @Singleton
-    fun provideCollectionItemDao(database: AppDatabase): CollectionItemDao {
-        return database.collectionItemDao()
-    }
+    fun provideCollectionItemDao(database: AppDatabase): CollectionItemDao = database.collectionItemDao()
 
     @Provides
-    @Singleton
-    fun provideCollectionDao(database: AppDatabase): CollectionDao {
-        return database.collectionDao()
-    }
+    fun provideCollectionDao(database: AppDatabase): CollectionDao = database.collectionDao()
 
     @Provides
-    @Singleton
-    fun provideCategoryDao(database: AppDatabase): CategoryDao {
-        return database.categoryDao()
-    }
+    fun provideTagDao(database: AppDatabase): TagDao = database.tagDao()
 }

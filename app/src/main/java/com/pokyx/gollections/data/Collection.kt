@@ -1,9 +1,25 @@
 package com.pokyx.gollections.data
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "collections")
+@Entity(
+    tableName = "collections",
+    foreignKeys = [
+        ForeignKey(
+            entity = Collection::class,
+            parentColumns = ["id"],
+            childColumns = ["parentId"],
+            onDelete = ForeignKey.CASCADE,
+            onUpdate = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["parentId"])]
+)
 data class Collection(
-    @PrimaryKey val name: String
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val name: String,
+    val parentId: Long? = null // null = collection à la racine du Dashboard
 )

@@ -5,7 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
@@ -14,7 +13,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.ui.screens.DashboardScreen
 import com.pokyx.gollections.ui.screens.CollectionListScreen
 import com.pokyx.gollections.ui.screens.AddItemScreen
@@ -32,8 +30,6 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.activity.SystemBarStyle
-import android.graphics.Color
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -44,8 +40,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             GollectionsTheme {
                 Surface(
-                    modifier = Modifier
-                        .fillMaxSize(),
+                    modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
@@ -60,8 +55,8 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable<DashboardRoute> {
                             DashboardScreen(
-                                onCollectionClick = { collection ->
-                                    navController.navigate(CollectionListRoute(collectionName = collection))
+                                onCollectionClick = { collectionId ->
+                                    navController.navigate(CollectionListRoute(collectionId = collectionId))
                                 },
                                 onAddItemClick = {
                                     navController.navigate(AddItemRoute())
@@ -74,14 +69,17 @@ class MainActivity : ComponentActivity() {
                             val viewModel: CollectionViewModel = hiltViewModel()
 
                             CollectionListScreen(
-                                collectionName = route.collectionName,
+                                collectionId = route.collectionId,
                                 viewModel = viewModel,
                                 onBackClick = { navController.popBackStack() },
                                 onItemClick = { itemId ->
                                     navController.navigate(ItemDetailRoute(itemId = itemId))
                                 },
                                 onAddItemClick = {
-                                    navController.navigate(AddItemRoute(preSelectedCollection = route.collectionName))
+                                    navController.navigate(AddItemRoute(preSelectedCollectionId = route.collectionId))
+                                },
+                                onCollectionClick = { subCollectionId ->
+                                    navController.navigate(CollectionListRoute(collectionId = subCollectionId))
                                 }
                             )
                         }
@@ -91,7 +89,7 @@ class MainActivity : ComponentActivity() {
                             val viewModel: CollectionViewModel = hiltViewModel()
 
                             AddItemScreen(
-                                preSelectedCollection = route.preSelectedCollection,
+                                preSelectedCollectionId = route.preSelectedCollectionId,
                                 onBackClick = { navController.popBackStack() },
                                 onSaveClick = { newItem ->
                                     viewModel.insertItem(newItem)
