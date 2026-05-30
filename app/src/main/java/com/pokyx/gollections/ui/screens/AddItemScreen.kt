@@ -39,7 +39,6 @@ import com.pokyx.gollections.utils.AddTagDialog
 import com.pokyx.gollections.utils.getDynamicStatusOptions
 import java.io.File
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -52,39 +51,29 @@ fun AddItemScreen(
     viewModel: CollectionViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    var title by remember { mutableStateOf("") }
-
-    val todayDate = remember { LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) }
-    var purchaseDate by remember { mutableStateOf(todayDate) }
-    var price by remember { mutableStateOf("") }
-    var status by remember { mutableStateOf("") }
-    var isLoaned by remember { mutableStateOf(false) }
-    var loanTo by remember { mutableStateOf("") }
-    var loanDate by remember { mutableStateOf(todayDate) }
-    var imageUrl by remember { mutableStateOf("") }
-
     val collectionsList by viewModel.collections.collectAsStateWithLifecycle()
-    var selectedPath by remember { mutableStateOf(listOf<Long>()) }
+    val state by viewModel.formState.collectAsStateWithLifecycle()
 
+    // Initialisation ou réinitialisation saine du state global au lancement
     LaunchedEffect(preSelectedCollectionId, collectionsList) {
-        if (preSelectedCollectionId != null && collectionsList.isNotEmpty() && selectedPath.isEmpty()) {
-            val path = mutableListOf<Long>()
-            var curr: Long? = preSelectedCollectionId
-            while(curr != null) { path.add(0, curr); curr = collectionsList.find { it.id == curr }?.parentId }
-            selectedPath = path
+        if (collectionsList.isNotEmpty() && state.title.isEmpty() && state.imageUrl.isEmpty()) {
+            viewModel.resetFormState(preSelectedCollectionId, collectionsList)
         }
     }
 
-    val finalSelectedId = selectedPath.lastOrNull()
+    val finalSelectedId = state.selectedPath.lastOrNull()
     val finalSelectedName = collectionsList.find { it.id == finalSelectedId }?.name ?: ""
 
-    val dbTags by viewModel.getTagsForCollections(selectedPath).collectAsStateWithLifecycle(initialValue = emptyList())
-    var selectedTags by remember { mutableStateOf(setOf<Tag>()) }
+    val dbTags by viewModel.getTagsForCollections(state.selectedPath).collectAsStateWithLifecycle(initialValue = emptyList())
     var showAddTagDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(finalSelectedId) {
-        val options = getDynamicStatusOptions(finalSelectedName)
-        if (status !in options) status = options.first()
+        if (finalSelectedName.isNotEmpty()) {
+            val options = getDynamicStatusOptions(finalSelectedName)
+            if (state.status !in options) {
+                viewModel.updateForm { it.copy(status = options.first()) }
+            }
+        }
     }
 
     var showPurchaseDatePicker by remember { mutableStateOf(false) }
@@ -102,54 +91,47 @@ fun AddItemScreen(
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success -> if (success && tempPhotoUri != null) { pendingImageUri = tempPhotoUri; showDetourageConfirmation = true } }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(title.ifBlank { "Nouvel Objet" }, fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Default.Close, contentDescription = "Fermer") } }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) }
+        topBar = { TopAppBar(title = { Text(state.title.ifBlank { "Nouvel Objet" }, fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Default.Close, contentDescription = "Fermer") } }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
 
             Box(modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)).clickable(enabled = !isProcessingImage) { showSourceDialog = true }, contentAlignment = Alignment.Center) {
                 if (isProcessingImage) { Column(horizontalAlignment = Alignment.CenterHorizontally) { CircularProgressIndicator(); Spacer(modifier = Modifier.height(8.dp)); Text("Détourage...", fontSize = 12.sp) } }
-                else if (imageUrl.isNotBlank()) AsyncImage(model = imageUrl, contentDescription = "Illustration", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                else if (state.imageUrl.isNotBlank()) AsyncImage(model = state.imageUrl, contentDescription = "Illustration", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                 else { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("📸", fontSize = 40.sp); Spacer(modifier = Modifier.height(4.dp)); Text("Ajouter une photo", color = MaterialTheme.colorScheme.outline, fontSize = 13.sp) } }
             }
 
-            OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Titre") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(value = state.title, onValueChange = { text -> viewModel.updateForm { it.copy(title = text) } }, label = { Text("Titre") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
             if (collectionsList.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(text = "Emplacement", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
 
                     var parentIdForNextLevel: Long? = null
-                    for (i in 0..selectedPath.size) {
+                    for (i in 0..state.selectedPath.size) {
                         val options = collectionsList.filter { it.parentId == parentIdForNextLevel }
                         if (options.isNotEmpty()) {
                             Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 options.forEach { opt ->
-                                    val isSelected = (i < selectedPath.size && selectedPath[i] == opt.id)
+                                    val isSelected = (i < state.selectedPath.size && state.selectedPath[i] == opt.id)
                                     FilterChip(
                                         selected = isSelected,
-                                        onClick = { selectedPath = selectedPath.take(i) + opt.id },
+                                        onClick = { viewModel.updateForm { it.copy(selectedPath = state.selectedPath.take(i) + opt.id) } },
                                         label = { Text(opt.name) }
                                     )
                                 }
                             }
                         }
-                        if (i < selectedPath.size) parentIdForNextLevel = selectedPath[i] else break
+                        if (i < state.selectedPath.size) parentIdForNextLevel = state.selectedPath[i] else break
                     }
                 }
             }
 
-            // --- SECTION ÉTIQUETTES MODIFIÉE ---
-            if (selectedPath.isNotEmpty()) {
+            if (state.selectedPath.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(text = "Étiquettes", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        IconButton(onClick = { showAddTagDialog = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Ajouter un tag", tint = MaterialTheme.colorScheme.primary)
-                        }
+                        IconButton(onClick = { showAddTagDialog = true }) { Icon(Icons.Default.Add, contentDescription = "Ajouter un tag", tint = MaterialTheme.colorScheme.primary) }
                     }
 
                     if (dbTags.isEmpty()) {
@@ -158,13 +140,11 @@ fun AddItemScreen(
                         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             dbTags.distinctBy { it.name }.forEach { tag ->
                                 FilterChip(
-                                    selected = selectedTags.any { it.name == tag.name },
+                                    selected = state.selectedTags.any { it.name == tag.name },
                                     onClick = {
-                                        if (selectedTags.any { it.name == tag.name }) {
-                                            selectedTags = selectedTags.filter { it.name != tag.name }.toSet()
-                                        } else {
-                                            selectedTags = selectedTags + tag
-                                        }
+                                        val currentTags = state.selectedTags
+                                        val newTags = if (currentTags.any { it.name == tag.name }) currentTags.filter { it.name != tag.name }.toSet() else currentTags + tag
+                                        viewModel.updateForm { it.copy(selectedTags = newTags) }
                                     },
                                     label = { Text(tag.name) }
                                 )
@@ -179,7 +159,7 @@ fun AddItemScreen(
                     Text(text = "Avancement", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
                     val statusOptions = getDynamicStatusOptions(finalSelectedName)
                     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        statusOptions.forEach { opt -> FilterChip(selected = status == opt, onClick = { status = opt }, label = { Text(opt) }) }
+                        statusOptions.forEach { opt -> FilterChip(selected = state.status == opt, onClick = { viewModel.updateForm { it.copy(status = opt) } }, label = { Text(opt) }) }
                     }
                 }
             }
@@ -187,11 +167,11 @@ fun AddItemScreen(
             Text(text = "Gestion du Prêt", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("Objet prêté à quelqu'un ?", fontWeight = FontWeight.Medium); Switch(checked = isLoaned, onCheckedChange = { isLoaned = it }) }
-                    if (isLoaned) {
-                        OutlinedTextField(value = loanTo, onValueChange = { loanTo = it }, label = { Text("Prêté à (Nom)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("Objet prêté à quelqu'un ?", fontWeight = FontWeight.Medium); Switch(checked = state.isLoaned, onCheckedChange = { value -> viewModel.updateForm { it.copy(isLoaned = value) } }) }
+                    if (state.isLoaned) {
+                        OutlinedTextField(value = state.loanTo, onValueChange = { text -> viewModel.updateForm { it.copy(loanTo = text) } }, label = { Text("Prêté à (Nom)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
                         Box(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedTextField(value = loanDate, onValueChange = {}, readOnly = true, label = { Text("Date du prêt") }, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = state.loanDate, onValueChange = {}, readOnly = true, label = { Text("Date du prêt") }, modifier = Modifier.fillMaxWidth())
                             Box(modifier = Modifier.matchParentSize().clickable { showLoanDatePicker = true })
                         }
                     }
@@ -200,9 +180,9 @@ fun AddItemScreen(
 
             Text(text = "Informations d'acquisition", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedTextField(value = price, onValueChange = { input -> if (input.all { it.isDigit() || it == '.' || it == ',' } && input.count { it == '.' || it == ',' } <= 1) price = input }, label = { Text("Prix (€)") }, modifier = Modifier.weight(1.5f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = state.price, onValueChange = { input -> if (input.all { it.isDigit() || it == '.' || it == ',' } && input.count { it == '.' || it == ',' } <= 1) viewModel.updateForm { it.copy(price = input) } }, label = { Text("Prix (€)") }, modifier = Modifier.weight(1.5f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
                 Box(modifier = Modifier.weight(1.5f)) {
-                    OutlinedTextField(value = purchaseDate, onValueChange = {}, readOnly = true, label = { Text("Date d'achat") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = state.purchaseDate, onValueChange = {}, readOnly = true, label = { Text("Date d'achat") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
                     Box(modifier = Modifier.matchParentSize().clickable { showPurchaseDatePicker = true })
                 }
             }
@@ -210,21 +190,21 @@ fun AddItemScreen(
             Spacer(modifier = Modifier.height(30.dp))
             Button(
                 onClick = {
-                    if (title.isNotBlank() && finalSelectedId != null) {
+                    if (state.title.isNotBlank() && finalSelectedId != null) {
                         val newItem = CollectionItem(
-                            title = title, collectionId = finalSelectedId,
-                            purchaseDate = purchaseDate.trim(), price = price.trim(), imageUrl = imageUrl,
-                            status = status, isLoaned = isLoaned, loanTo = if (isLoaned) loanTo.trim() else "", loanDate = if (isLoaned) loanDate else ""
+                            title = state.title, collectionId = finalSelectedId,
+                            purchaseDate = state.purchaseDate.trim(), price = state.price.trim(), imageUrl = state.imageUrl,
+                            status = state.status, isLoaned = state.isLoaned, loanTo = if (state.isLoaned) state.loanTo.trim() else "", loanDate = if (state.isLoaned) state.loanDate else ""
                         )
-                        onSaveClick(newItem, selectedTags.toList())
+                        onSaveClick(newItem, state.selectedTags.toList())
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(56.dp), enabled = title.isNotBlank() && finalSelectedId != null
+                modifier = Modifier.fillMaxWidth().height(56.dp), enabled = state.title.isNotBlank() && finalSelectedId != null
             ) { Text("Enregistrer", fontSize = 16.sp) }
         }
 
-        if (showPurchaseDatePicker) DatePickerDialog(onDismissRequest = { showPurchaseDatePicker = false }, confirmButton = { TextButton(onClick = { purchaseDatePickerState.selectedDateMillis?.let { millis -> purchaseDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) }; showPurchaseDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showPurchaseDatePicker = false }) { Text("Annuler") } }) { DatePicker(state = purchaseDatePickerState) }
-        if (showLoanDatePicker) DatePickerDialog(onDismissRequest = { showLoanDatePicker = false }, confirmButton = { TextButton(onClick = { loanDatePickerState.selectedDateMillis?.let { millis -> loanDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) }; showLoanDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showLoanDatePicker = false }) { Text("Annuler") } }) { DatePicker(state = loanDatePickerState) }
+        if (showPurchaseDatePicker) DatePickerDialog(onDismissRequest = { showPurchaseDatePicker = false }, confirmButton = { TextButton(onClick = { purchaseDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(purchaseDate = dateStr) } }; showPurchaseDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showPurchaseDatePicker = false }) { Text("Annuler") } }) { DatePicker(state = purchaseDatePickerState) }
+        if (showLoanDatePicker) DatePickerDialog(onDismissRequest = { showLoanDatePicker = false }, confirmButton = { TextButton(onClick = { loanDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(loanDate = dateStr) } }; showLoanDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showLoanDatePicker = false }) { Text("Annuler") } }) { DatePicker(state = loanDatePickerState) }
 
         if (showSourceDialog) AlertDialog(onDismissRequest = { showSourceDialog = false }, title = { Text("Illustration") }, text = { Text("Choisissez la source") }, confirmButton = { Button(onClick = { showSourceDialog = false; val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir); tempPhotoUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile); cameraLauncher.launch(tempPhotoUri!!) }) { Text("📷 Appareil Photo") } }, dismissButton = { Button(onClick = { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text("📁 Galerie") } })
 
@@ -239,7 +219,7 @@ fun AddItemScreen(
                         isProcessingImage = true
                         viewModel.processAndSaveImage(uri, true) { finalUrl ->
                             isProcessingImage = false
-                            if (finalUrl != null) imageUrl = finalUrl
+                            if (finalUrl != null) viewModel.updateForm { it.copy(imageUrl = finalUrl) }
                             else Toast.makeText(context, "Erreur lors du détourage", Toast.LENGTH_SHORT).show()
                         }
                     }
@@ -252,22 +232,15 @@ fun AddItemScreen(
                         isProcessingImage = true
                         viewModel.processAndSaveImage(uri, false) { finalUrl ->
                             isProcessingImage = false
-                            if (finalUrl != null) imageUrl = finalUrl
+                            if (finalUrl != null) viewModel.updateForm { it.copy(imageUrl = finalUrl) }
                         }
                     }
                 }) { Text("Non") }
             }
         )
 
-        // --- Appel du dialogue d'ajout de tag ---
         if (showAddTagDialog && finalSelectedId != null) {
-            AddTagDialog(
-                onDismiss = { showAddTagDialog = false },
-                onConfirm = { tagName ->
-                    viewModel.insertTag(tagName, finalSelectedId)
-                    showAddTagDialog = false
-                }
-            )
+            AddTagDialog(onDismiss = { showAddTagDialog = false }, onConfirm = { tagName -> viewModel.insertTag(tagName, finalSelectedId); showAddTagDialog = false })
         }
     }
 }

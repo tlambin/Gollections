@@ -21,8 +21,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
+
+// --- STRUCTURE DE L'ÉTAT DU FORMULAIRE (UDF) ---
+data class ItemFormState(
+    val title: String = "",
+    val purchaseDate: String = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+    val price: String = "",
+    val status: String = "",
+    val isLoaned: Boolean = false,
+    val loanTo: String = "",
+    val loanDate: String = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+    val imageUrl: String = "",
+    val selectedPath: List<Long> = emptyList(),
+    val selectedTags: Set<Tag> = emptySet()
+)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -41,8 +58,52 @@ class CollectionViewModel @Inject constructor(
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
     val searchedItemsWithTags: StateFlow<List<CollectionItemWithTags>> = _searchQuery.flatMapLatest { query -> if (query.isBlank()) collectionItemDao.getAllItemsWithTags() else collectionItemDao.searchItemsWithTags(query) }.stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
 
+    // Flux d'état pour le formulaire
+    private val _formState = MutableStateFlow(ItemFormState())
+    val formState: StateFlow<ItemFormState> = _formState.asStateFlow()
+
     fun updateSearchQuery(query: String) { _searchQuery.value = query }
 
+    // --- GESTION DE L'ÉTAT DU FORMULAIRE ---
+    fun resetFormState(preSelectedCollectionId: Long? = null, collectionsList: List<Collection> = emptyList()) {
+        val initialPath = mutableListOf<Long>()
+        if (preSelectedCollectionId != null && collectionsList.isNotEmpty()) {
+            var curr: Long? = preSelectedCollectionId
+            while(curr != null) {
+                initialPath.add(0, curr)
+                curr = collectionsList.find { it.id == curr }?.parentId
+            }
+        }
+        _formState.value = ItemFormState(selectedPath = initialPath)
+    }
+
+    fun loadItemIntoForm(itemWithTags: CollectionItemWithTags, collectionsList: List<Collection>) {
+        val currentItem = itemWithTags.item
+        val path = mutableListOf<Long>()
+        var curr: Long? = currentItem.collectionId
+        while (curr != null) {
+            path.add(0, curr)
+            curr = collectionsList.find { it.id == curr }?.parentId
+        }
+        _formState.value = ItemFormState(
+            title = currentItem.title,
+            purchaseDate = currentItem.purchaseDate,
+            price = currentItem.price,
+            status = currentItem.status,
+            isLoaned = currentItem.isLoaned,
+            loanTo = currentItem.loanTo,
+            loanDate = currentItem.loanDate,
+            imageUrl = currentItem.imageUrl,
+            selectedPath = path,
+            selectedTags = itemWithTags.tags.toSet()
+        )
+    }
+
+    fun updateForm(transform: (ItemFormState) -> ItemFormState) {
+        _formState.update(transform)
+    }
+
+    // --- LOGIQUE BD ---
     fun insertItemWithTags(item: CollectionItem, tags: List<Tag>) {
         viewModelScope.launch {
             val itemId = collectionItemDao.insertItem(item).toInt()
@@ -93,18 +154,8 @@ class CollectionViewModel @Inject constructor(
     }
 
     fun insertTag(name: String, collectionId: Long) { viewModelScope.launch { tagDao.insertTag(Tag(name = name, collectionId = collectionId)) } }
-
-    fun deleteTag(tag: Tag) {
-        viewModelScope.launch {
-            tagDao.deleteTag(tag)
-        }
-    }
-
-    fun renameTag(collectionId: Long, oldName: String, newName: String) {
-        viewModelScope.launch {
-            tagDao.renameTag(collectionId, oldName, newName)
-        }
-    }
+    fun deleteTag(tag: Tag) { viewModelScope.launch { tagDao.deleteTag(tag) } }
+    fun renameTag(collectionId: Long, oldName: String, newName: String) { viewModelScope.launch { tagDao.renameTag(collectionId, oldName, newName) } }
 
     fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
         viewModelScope.launch {
