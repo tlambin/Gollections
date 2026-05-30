@@ -93,8 +93,16 @@
     <string name="unit_object_plural">objets</string>
 
     <string name="change_cover">Modifier l\'icône</string>
-    <string name="choose_gallery">📁 Choisir une image</string>
-    <string name="choose_emoji">😀 Choisir un émoji</string>
-    <string name="reset_cover">🔄 Réinitialiser par défaut</string>
+    <string name="choose_gallery">Choisir une image</string>
+    <string name="choose_emoji">Choisir un émoji</string>
+    <string name="reset_cover">Réinitialiser par défaut</string>
     <string name="type_emoji">Tapez un émoji</string>
+
+    <string name="sort_by">Trier par</string>
+    <string name="sort_name_asc">Nom (A-Z)</string>
+    <string name="sort_name_desc">Nom (Z-A)</string>
+    <string name="sort_price_asc">Prix (Croissant)</string>
+    <string name="sort_price_desc">Prix (Décroissant)</string>
+    <string name="sort_date_desc">Date d\'achat (Récent)</string>
+    <string name="sort_date_asc">Date d\'achat (Ancien)</string>
 </resources>
