@@ -10,34 +10,24 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
 import com.pokyx.gollections.utils.getEmojiForCollection
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,18 +40,13 @@ fun CollectionDialog(
     viewModel: CollectionViewModel
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val keyboardController = LocalSoftwareKeyboardController.current
-
     var name by remember { mutableStateOf(initialName) }
     var cover by remember { mutableStateOf(initialCover) }
 
     var showMenu by remember { mutableStateOf(false) }
+    var showEmojiInput by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
-
-    // Outils pour forcer l'ouverture du clavier sur le sélecteur d'émojis
-    val focusRequester = remember { FocusRequester() }
-    var hiddenInputText by remember { mutableStateOf("") }
+    var tempEmoji by remember { mutableStateOf("") }
 
     // Launcher pour ouvrir la galerie photo
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -139,12 +124,8 @@ fun CollectionDialog(
                             text = { Text(stringResource(R.string.choose_emoji)) },
                             onClick = {
                                 showMenu = false
-                                coroutineScope.launch {
-                                    // Demande le focus sur le champ invisible et affiche le clavier
-                                    focusRequester.requestFocus()
-                                    delay(100) // Laisse le temps au système de s'ajuster
-                                    keyboardController?.show()
-                                }
+                                tempEmoji = if (!cover.startsWith("file") && !cover.startsWith("content") && !cover.startsWith("/")) cover else ""
+                                showEmojiInput = true
                             }
                         )
                         if (cover.isNotBlank()) {
@@ -157,31 +138,32 @@ fun CollectionDialog(
                     }
                 }
 
-                // CHAMP DE TEXTE INVISIBLE POUR CAPTURER L'EMOJI DU CLAVIER
-                // On utilise un BasicTextField presque invisible (taille 1dp, transparent)
-                BasicTextField(
-                    value = hiddenInputText,
-                    onValueChange = { input ->
-                        if (input.isNotEmpty()) {
-                            // On extrait le dernier caractère/émoji tapé
-                            cover = input
-                            hiddenInputText = "" // Réinitialise pour les prochaines saisies
-                            // Optionnel : masque le clavier après sélection
-                            keyboardController?.hide()
-                        }
-                    },
-                    modifier = Modifier
-                        .size(1.dp)
-                        .focusRequester(focusRequester)
-                        .alpha(0f),
-                    // Indique au système d'ouvrir de préférence le panneau émoji si disponible
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
-                        autoCorrectEnabled = false
+                // SI SÉLECTION ÉMOJI : Affichage d'un champ dédié temporaire pour saisir l'émoji du clavier
+                if (showEmojiInput) {
+                    OutlinedTextField(
+                        value = tempEmoji,
+                        onValueChange = { input ->
+                            // Limite la saisie pour ne capturer qu'un seul émoji complexe
+                            if (input.length <= 4) {
+                                tempEmoji = input
+                                if (input.isNotBlank()) {
+                                    cover = input
+                                }
+                            }
+                        },
+                        label = { Text(stringResource(R.string.type_emoji)) },
+                        singleLine = true,
+                        trailingIcon = {
+                            TextButton(onClick = { showEmojiInput = false }) {
+                                Text("OK")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     )
-                )
+                }
 
-                // CHAMP DE TEXTE NORMAL POUR LE NOM
+                // CHAMP DE TEXTE NORMAL POUR LE NOM DE LA COLLECTION
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
