@@ -21,7 +21,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -192,66 +192,87 @@ fun CollectionListScreen(
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
 
-            // 1. Barre de recherche
+            // 1. Barre de recherche (Avec padding normal)
             TextField(value = searchQuery, onValueChange = { searchQuery = it }, placeholder = { Text(stringResource(R.string.search_placeholder)) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), shape = CircleShape, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }, trailingIcon = { if (searchQuery.isNotEmpty()) { IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Clear, contentDescription = null) } } }, colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant), singleLine = true)
 
-            // 2. Ligne des Bulles CENTRÉES et dans l'ordre demandé
+            // 2. Ligne des Bulles (Sans padding horizontal pour coller aux bords)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween, // Distribue l'espace pour coller le premier et dernier aux bords
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 1. Bulle Étiquettes
+                // 1. Bulle Étiquettes (Demi-bulle gauche, bord gauche plat)
                 Box(modifier = Modifier
-                    .background(if (showTagsRow) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                    .width(52.dp)
+                    .height(40.dp)
+                    .background(
+                        color = if (showTagsRow) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(topEnd = 50.dp, bottomEnd = 50.dp) // Arrondi à droite, plat à gauche
+                    )
                     .clickable {
                         if (dbTags.isNotEmpty()) {
                             showTagsRow = !showTagsRow
                         } else {
                             Toast.makeText(context, "Aucune étiquette dans ce dossier", Toast.LENGTH_SHORT).show()
                         }
-                    }
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(LabelIcon, contentDescription = "Tags", tint = if (showTagsRow) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
 
-                // 2. Bulle Favoris (Coeur)
+                // 2. Bulle Favoris (Ronde fixe)
                 Box(modifier = Modifier
+                    .size(40.dp)
                     .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                    .clickable { Toast.makeText(context, "Favoris bientôt disponibles", Toast.LENGTH_SHORT).show() }
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .clickable { Toast.makeText(context, "Favoris bientôt disponibles", Toast.LENGTH_SHORT).show() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Favorite, contentDescription = "Favoris", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.FavoriteBorder, contentDescription = "Favoris", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
 
-                // 3. Bulle Nombre Total
-                StatBubble(text = totalCount.toString(), isHighlight = false)
-
-                // 4. Bulle Valeur Totale
-                StatBubble(text = formattedValue, isHighlight = false)
-
-                // 5. Bulle Corbeille
+                // 3. Bulle Nombre Total (Pilule taille fixe)
                 Box(modifier = Modifier
+                    .width(85.dp)
+                    .height(40.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = totalCount.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+
+                // 4. Bulle Valeur Totale (Pilule taille fixe identique au nombre)
+                Box(modifier = Modifier
+                    .width(85.dp)
+                    .height(40.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = formattedValue, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+
+                // 5. Bulle Corbeille (Ronde fixe)
+                Box(modifier = Modifier
+                    .size(40.dp)
                     .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                    .clickable { Toast.makeText(context, "Corbeille bientôt disponible", Toast.LENGTH_SHORT).show() }
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .clickable { Toast.makeText(context, "Corbeille bientôt disponible", Toast.LENGTH_SHORT).show() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "Corbeille", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
 
-                // 6. Bulle Tri
+                // 6. Bulle Tri (Demi-bulle droite, bord droit plat)
                 Box {
                     Box(modifier = Modifier
-                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                        .clickable { showSortMenu = true }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .width(52.dp)
+                        .height(40.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(topStart = 50.dp, bottomStart = 50.dp) // Arrondi à gauche, plat à droite
+                        )
+                        .clickable { showSortMenu = true },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(FilterListIcon, contentDescription = "Trier", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
@@ -274,7 +295,7 @@ fun CollectionListScreen(
                 }
             }
 
-            // 3. Contenu principal
+            // 3. Contenu principal (Sous-collections et Objets)
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
                 // Sous-collections en grille de 3
@@ -288,6 +309,7 @@ fun CollectionListScreen(
                                 val subCount = viewModel.getRecursiveItemCount(subCol.id, allCollections, allItemsWithTags)
                                 SubCollectionSmallCard(subCol, subCount, Modifier.weight(1f), onCollectionClick)
                             }
+                            // Comble l'espace vide si la rangée a moins de 3 éléments
                             repeat(3 - rowItems.size) {
                                 Spacer(modifier = Modifier.weight(1f))
                             }
@@ -347,26 +369,6 @@ fun CollectionListScreen(
     if (showDeleteTagDialog) AlertDialog(onDismissRequest = { showDeleteTagDialog = false }, title = { Text(stringResource(R.string.delete_tag_title)) }, text = { Text(stringResource(R.string.delete_tag_warning, selectedTagToManage)) }, confirmButton = { Button(onClick = { val tagToDelete = dbTags.find { it.name == selectedTagToManage }; tagToDelete?.let { viewModel.deleteTag(it) }; if (selectedTagFilter == selectedTagToManage) selectedTagFilter = "Toutes"; showDeleteTagDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.create).replace("Créer", "Confirmer")) } }, dismissButton = { TextButton(onClick = { showDeleteTagDialog = false }) { Text(stringResource(R.string.cancel)) } })
     if (showRenameDialog) AlertDialog(onDismissRequest = { showRenameDialog = false }, title = { Text(stringResource(R.string.rename)) }, text = { OutlinedTextField(value = renameInput, onValueChange = { renameInput = it }, singleLine = true) }, confirmButton = { Button(onClick = { if (renameInput.isNotBlank()) { viewModel.renameCollection(collectionId, renameInput.trim()); showRenameDialog = false } }) { Text(stringResource(R.string.btn_save)) } }, dismissButton = { TextButton(onClick = { showRenameDialog = false }) { Text(stringResource(R.string.cancel)) } })
     if (showDeleteCollectionDialog) AlertDialog(onDismissRequest = { showDeleteCollectionDialog = false }, title = { Text(stringResource(R.string.delete_item_title).replace("l\'objet", "la collection")) }, text = { Text(stringResource(R.string.delete_folder_warning)) }, confirmButton = { Button(onClick = { viewModel.deleteCollection(collectionId); showDeleteCollectionDialog = false; onBackClick() }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.delete_folder).replace(" la collection", "")) } }, dismissButton = { TextButton(onClick = { showDeleteCollectionDialog = false }) { Text(stringResource(R.string.cancel)) } })
-}
-
-@Composable
-fun StatBubble(text: String, isHighlight: Boolean) {
-    Box(
-        modifier = Modifier
-            .background(
-                color = if (isHighlight) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                shape = CircleShape
-            )
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = if (isHighlight) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
 }
 
 @Composable
