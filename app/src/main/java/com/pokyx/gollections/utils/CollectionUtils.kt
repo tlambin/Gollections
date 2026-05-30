@@ -1,5 +1,6 @@
 package com.pokyx.gollections.utils
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -7,17 +8,40 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.pokyx.gollections.R
 import com.pokyx.gollections.data.Collection
 
-fun getDynamicStatusOptions(collectionName: String): List<String> {
+fun getDynamicStatusOptions(context: Context, collectionName: String): List<String> {
     return when (collectionName.lowercase().trim()) {
-        "blu-ray", "films", "cinéma", "cinema" -> listOf("À voir", "En cours", "Vu")
-        "livres", "mangas", "bd", "romans" -> listOf("À lire", "En cours", "Lu")
-        "jeux vidéo", "jeux", "jeux video", "gaming", "switch", "ps5" -> listOf("À faire", "En cours", "Terminé", "Platiné", "Abandonné")
-        "vinyles", "musique", "cd", "disques" -> listOf("À écouter", "Écouté")
-        else -> listOf("Nouveau", "En cours", "Terminé")
+        "blu-ray", "films", "cinéma", "cinema" -> listOf(
+            context.getString(R.string.status_to_see),
+            context.getString(R.string.status_in_progress),
+            context.getString(R.string.status_seen)
+        )
+        "livres", "mangas", "bd", "romans" -> listOf(
+            context.getString(R.string.status_to_read),
+            context.getString(R.string.status_in_progress),
+            context.getString(R.string.status_read)
+        )
+        "jeux vidéo", "jeux", "jeux video", "gaming", "switch", "ps5" -> listOf(
+            context.getString(R.string.status_to_do),
+            context.getString(R.string.status_in_progress),
+            context.getString(R.string.status_done),
+            context.getString(R.string.status_platinum),
+            context.getString(R.string.status_abandoned)
+        )
+        "vinyles", "musique", "cd", "disques" -> listOf(
+            context.getString(R.string.status_to_listen),
+            context.getString(R.string.status_listened)
+        )
+        else -> listOf(
+            context.getString(R.string.status_new),
+            context.getString(R.string.status_in_progress),
+            context.getString(R.string.status_done)
+        )
     }
 }
 
@@ -36,13 +60,13 @@ fun buildPathBottomUp(targetId: Long, allCols: List<Collection>): List<Long> {
     return path
 }
 
-fun getUnitForCollection(name: String, count: Int): String {
+fun getUnitForCollection(context: Context, name: String, count: Int): String {
     return when (name.lowercase().trim()) {
-        "blu-ray", "films", "cinéma", "cinema" -> if (count <= 1) "film" else "films"
-        "vinyles" -> if (count <= 1) "album" else "albums"
-        "jeux vidéo", "jeux", "jeux video", "gaming", "switch", "ps5" -> if (count <= 1) "jeu" else "jeux"
-        "livres", "mangas", "bd", "romans" -> if (count <= 1) "livre" else "livres"
-        else -> if (count <= 1) "objet" else "objets"
+        "blu-ray", "films", "cinéma", "cinema" -> if (count <= 1) context.getString(R.string.unit_film_single) else context.getString(R.string.unit_film_plural)
+        "vinyles" -> if (count <= 1) context.getString(R.string.unit_album_single) else context.getString(R.string.unit_album_plural)
+        "jeux vidéo", "jeux", "jeux video", "gaming", "switch", "ps5" -> if (count <= 1) context.getString(R.string.unit_game_single) else context.getString(R.string.unit_game_plural)
+        "livres", "mangas", "bd", "romans" -> if (count <= 1) context.getString(R.string.unit_book_single) else context.getString(R.string.unit_book_plural)
+        else -> if (count <= 1) context.getString(R.string.unit_object_single) else context.getString(R.string.unit_object_plural)
     }
 }
 
@@ -54,7 +78,7 @@ fun getEmojiForCollection(collectionName: String): String {
         "livres", "livre", "mangas", "manga", "bd", "romans" -> "📚"
         "figurines", "figurine", "pop" -> "🧸"
         "jeux de société", "jeux de societe", "cartes" -> "🎲"
-        else -> "🗃️"
+        else -> "📦"
     }
 }
 
@@ -70,7 +94,6 @@ fun DetailRow(label: String, value: String) {
     }
 }
 
-// --- NOUVEAU : Dialogue d'ajout d'étiquette réutilisable ---
 @Composable
 fun AddTagDialog(
     onDismiss: () -> Unit,
@@ -79,12 +102,12 @@ fun AddTagDialog(
     var newTagName by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nouvelle Étiquette") },
+        title = { Text(stringResource(R.string.delete_tag_title).replace("?", "")) },
         text = {
             OutlinedTextField(
                 value = newTagName,
                 onValueChange = { newTagName = it },
-                label = { Text("Nom (ex: 4K, Collector, PS5...)") },
+                label = { Text(stringResource(R.string.new_tag_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -96,10 +119,10 @@ fun AddTagDialog(
                         onConfirm(newTagName.trim())
                     }
                 }
-            ) { Text("Créer") }
+            ) { Text(stringResource(R.string.create)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Annuler") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }

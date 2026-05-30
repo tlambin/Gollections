@@ -1,3 +1,94 @@
 <resources>
     <string name="app_name">Gollections</string>
+
+    <string name="search_placeholder">Rechercher…</string>
+    <string name="my_collections">Mes Collections</string>
+    <string name="new_collection">Nouvelle Collection</string>
+    <string name="create">Créer</string>
+    <string name="cancel">Annuler</string>
+    <string name="no_object_found">Aucun objet trouvé 😕</string>
+    <string name="stat_total_items">Total Objets</string>
+    <string name="stat_total_items_sub">Tous médias confondus</string>
+    <string name="stat_root_collections">Collections racines</string>
+    <string name="stat_root_collections_sub">Collections principales</string>
+    <string name="stat_loaned_items">Prêts en cours</string>
+    <string name="stat_loaned_items_sub">Objets confiés à des proches</string>
+
+    <string name="title_folders">Sous-collections</string>
+    <string name="title_items">Objets</string>
+    <string name="empty_folder">Collection vide 📦</string>
+    <string name="add_title">Ajouter</string>
+    <string name="add_new_item">Un nouvel objet</string>
+    <string name="add_new_subfolder">Une sous-collection</string>
+    <string name="manage_folder">Gérer \'%1$s\'</string>
+    <string name="rename">Renommer</string>
+    <string name="move_folder">Déplacer vers une autre collection</string>
+    <string name="delete_folder">Supprimer la collection</string>
+    <string name="delete_folder_warning">Attention ! Cette action supprimera également toutes les sous-collections et les objets associés.</string>
+    <string name="move_to_root">Convertir en Collection</string>
+    <string name="tag_options_title">Options : %1$s</string>
+    <string name="tag_options_subtitle">Que souhaitez-vous faire ?</string>
+    <string name="delete_tag_title">Supprimer l\'étiquette ?</string>
+    <string name="delete_tag_warning">Voulez-vous supprimer l\'étiquette \'%1$s\' de tous vos objets ?</string>
+    <string name="new_subfolder_title">Nouvelle sous-collection</string>
+    <string name="new_subfolder_label">Nom de la collection</string>
+
+    <string name="title_new_item">Nouvel Objet</string>
+    <string name="title_edit_item">Modifier l\'objet</string>
+    <string name="label_title">Titre</string>
+    <string name="label_location">Emplacement</string>
+    <string name="label_tags">Étiquettes</string>
+    <string name="no_tags_available">Aucune étiquette disponible. Cliquez sur + pour en créer une.</string>
+    <string name="label_status">Avancement</string>
+    <string name="title_loan_management">Gestion du Prêt</string>
+    <string name="loan_switch_text">Objet prêté à quelqu\'un ?</string>
+    <string name="label_loan_to">Prêté à (Nom)</string>
+    <string name="label_loan_date">Date du prêt</string>
+    <string name="title_acquisition_info">Informations d\'acquisition</string>
+    <string name="label_price">Prix (€)</string>
+    <string name="label_purchase_date">Date d\'achat</string>
+    <string name="btn_save">Enregistrer</string>
+    <string name="btn_save_edits">Enregistrer les modifications</string>
+    <string name="dialog_cutout_title">Détourage intelligent ✨</string>
+    <string name="dialog_cutout_text">Détourer l\'objet ?</string>
+    <string name="dialog_illustration_title">Illustration</string>
+    <string name="dialog_illustration_text">Choisissez la source</string>
+    <string name="source_camera">📷 Appareil Photo</string>
+    <string name="source_gallery">📁 Galerie</string>
+    <string name="toast_cutout_error">Erreur lors du détourage</string>
+    <string name="new_tag_label">Nom (ex: 4K, Collector, PS5…)</string>
+
+    <string name="title_details">Informations</string>
+    <string name="delete_item_title">Supprimer l\'objet ?</string>
+    <string name="delete_item_warning">Voulez-vous vraiment supprimer \"%1$s\" ? Cette action est irréversible.</string>
+    <string name="not_specified">Non renseignée</string>
+    <string name="not_specified_price">Non renseigné</string>
+    <string name="loan_status_title">Statut du prêt</string>
+    <string name="loan_status_active_to">Prêté à : %1$s</string>
+    <string name="loan_status_active_since">Depuis le : %1$s</string>
+    <string name="loan_status_inactive">Dans ma collection</string>
+
+    <string name="status_to_see">À voir</string>
+    <string name="status_in_progress">En cours</string>
+    <string name="status_seen">Vu</string>
+    <string name="status_to_read">À lire</string>
+    <string name="status_read">Lu</string>
+    <string name="status_to_do">À faire</string>
+    <string name="status_done">Terminé</string>
+    <string name="status_platinum">Platiné</string>
+    <string name="status_abandoned">Abandonné</string>
+    <string name="status_to_listen">À écouter</string>
+    <string name="status_listened">Écouté</string>
+    <string name="status_new">Nouveau</string>
+
+    <string name="unit_film_single">film</string>
+    <string name="unit_film_plural">films</string>
+    <string name="unit_album_single">album</string>
+    <string name="unit_album_plural">albums</string>
+    <string name="unit_game_single">jeu</string>
+    <string name="unit_game_plural">jeux</string>
+    <string name="unit_book_single">livre</string>
+    <string name="unit_book_plural">livres</string>
+    <string name="unit_object_single">objet</string>
+    <string name="unit_object_plural">objets</string>
 </resources>

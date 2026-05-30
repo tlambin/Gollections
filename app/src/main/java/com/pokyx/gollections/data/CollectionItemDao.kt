@@ -47,7 +47,7 @@ interface CollectionItemDao {
 
     @Transaction
     @Query("""
-        SELECT * FROM collection_items 
+        SELECT collection_items.* FROM collection_items 
         INNER JOIN collection_item_tag_cross_ref ON collection_items.id = collection_item_tag_cross_ref.itemId
         INNER JOIN Tag ON collection_item_tag_cross_ref.tagId = Tag.id
         WHERE Tag.name = :tagName

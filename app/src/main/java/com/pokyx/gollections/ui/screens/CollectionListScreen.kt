@@ -30,11 +30,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.pokyx.gollections.R
 import com.pokyx.gollections.data.Collection as DBCollection
 import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
 import com.pokyx.gollections.utils.buildPathBottomUp
@@ -51,11 +54,12 @@ fun CollectionListScreen(
     onAddItemClick: () -> Unit,
     onCollectionClick: (Long) -> Unit
 ) {
+    val context = LocalContext.current
     val allCollections by viewModel.collections.collectAsStateWithLifecycle()
     val allItemsWithTags by viewModel.allItemsWithTags.collectAsStateWithLifecycle()
 
     val currentCollection = allCollections.find { it.id == collectionId }
-    val collectionName = currentCollection?.name ?: "Chargement..."
+    val collectionName = currentCollection?.name ?: ""
 
     val currentPathIds = remember(collectionId, allCollections) { buildPathBottomUp(collectionId, allCollections) }
     val pathCollections = currentPathIds.mapNotNull { id -> allCollections.find { it.id == id } }
@@ -70,7 +74,7 @@ fun CollectionListScreen(
     var showDeleteCollectionDialog by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
     var renameInput by remember { mutableStateOf("") }
-    LaunchedEffect(collectionName) { if (collectionName != "Chargement...") renameInput = collectionName }
+    LaunchedEffect(collectionName) { if (collectionName.isNotEmpty()) renameInput = collectionName }
 
     var showAddSubCollectionDialog by remember { mutableStateOf(false) }
     var newSubCollectionName by remember { mutableStateOf("") }
@@ -113,20 +117,23 @@ fun CollectionListScreen(
                         Text(text = collectionName, fontWeight = FontWeight.Bold)
                     }
                 },
-                navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour") } },
+                navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) } },
                 actions = {
-                    IconButton(onClick = { showEditSheet = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Options du dossier") }
+                    IconButton(onClick = { showEditSheet = true }) { Icon(Icons.Default.MoreVert, contentDescription = null) }
                 },
                 scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = MaterialTheme.colorScheme.background, scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant)
+                // CORRECTION ICI : Utilisation de la configuration correcte pour la LargeTopAppBar
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
             )
         },
-        floatingActionButton = { FloatingActionButton(onClick = { showAddSheet = true }, containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) { Icon(Icons.Default.Add, contentDescription = "Ajouter", modifier = Modifier.size(28.dp)) } }
+        floatingActionButton = { FloatingActionButton(onClick = { showAddSheet = true }, containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_title), modifier = Modifier.size(28.dp)) } }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            TextField(value = searchQuery, onValueChange = { searchQuery = it }, placeholder = { Text("Rechercher...") }, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), shape = CircleShape, leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Rechercher", tint = MaterialTheme.colorScheme.primary) }, trailingIcon = { if (searchQuery.isNotEmpty()) { IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Clear, contentDescription = "Effacer") } } }, colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant), singleLine = true)
+            TextField(value = searchQuery, onValueChange = { searchQuery = it }, placeholder = { Text(stringResource(R.string.search_placeholder)) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), shape = CircleShape, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }, trailingIcon = { if (searchQuery.isNotEmpty()) { IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Clear, contentDescription = null) } } }, colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant), singleLine = true)
 
-            // OPTIMISATION : On n'affiche la section des jetons que s'il y a des étiquettes existantes
             if (dbTags.isNotEmpty()) {
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     tagsList.forEach { tag -> CustomTagChip(text = tag, isSelected = selectedTagFilter == tag, onClick = { selectedTagFilter = tag }, onLongClick = if (tag != "Toutes") { { selectedTagToManage = tag; showTagOptionsDialog = true } } else null) }
@@ -135,7 +142,7 @@ fun CollectionListScreen(
 
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (subCollections.isNotEmpty()) {
-                    item { Text("Dossiers", fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp, top = 8.dp)) }
+                    item { Text(stringResource(R.string.title_folders), fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp, top = 8.dp)) }
                     items(subCollections) { subCol ->
                         Card(modifier = Modifier.fillMaxWidth().clickable { onCollectionClick(subCol.id) }, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -144,7 +151,7 @@ fun CollectionListScreen(
                                 Column {
                                     Text(text = subCol.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                     val subCount = viewModel.getRecursiveItemCount(subCol.id, allCollections, allItemsWithTags)
-                                    val unit = getUnitForCollection(subCol.name, subCount)
+                                    val unit = getUnitForCollection(context, subCol.name, subCount)
                                     Text(text = "$subCount $unit", fontSize = 12.sp, color = Color.Gray)
                                 }
                             }
@@ -153,13 +160,13 @@ fun CollectionListScreen(
                     item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
                 }
 
-                if (filteredItems.isNotEmpty() || subCollections.isNotEmpty()) { item { Text("Objets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp)) } }
-                if (filteredItems.isEmpty() && subCollections.isEmpty()) { item { Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text("Dossier vide 📦", color = MaterialTheme.colorScheme.outline) } } } else {
+                if (filteredItems.isNotEmpty() || subCollections.isNotEmpty()) { item { Text(stringResource(R.string.title_items), fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp)) } }
+                if (filteredItems.isEmpty() && subCollections.isEmpty()) { item { Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.empty_folder), color = MaterialTheme.colorScheme.outline) } } } else {
                     items(filteredItems) { itemWithTags ->
                         val item = itemWithTags.item
                         Card(modifier = Modifier.fillMaxWidth().clickable { onItemClick(item.id) }, shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
                             Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                if (item.imageUrl.isNotBlank()) AsyncImage(model = item.imageUrl, contentDescription = "Miniature", modifier = Modifier.size(50.dp).clip(RoundedCornerShape(6.dp)), contentScale = ContentScale.Crop)
+                                if (item.imageUrl.isNotBlank()) AsyncImage(model = item.imageUrl, contentDescription = null, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(6.dp)), contentScale = ContentScale.Crop)
                                 else Box(modifier = Modifier.size(50.dp).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) { Text(text = getEmojiForCollection(collectionName), fontSize = 24.sp) }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
@@ -178,15 +185,15 @@ fun CollectionListScreen(
         }
     }
 
-    if (showAddSheet) { ModalBottomSheet(onDismissRequest = { showAddSheet = false }) { Column(modifier = Modifier.padding(bottom = 32.dp)) { Text("Ajouter", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary); ListItem(headlineContent = { Text("Un nouvel objet", fontWeight = FontWeight.Medium) }, leadingContent = { Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }, modifier = Modifier.clickable { showAddSheet = false; onAddItemClick() }); ListItem(headlineContent = { Text("Un sous-dossier", fontWeight = FontWeight.Medium) }, leadingContent = { Text("📁", fontSize = 20.sp) }, modifier = Modifier.clickable { showAddSheet = false; showAddSubCollectionDialog = true }) } } }
-    if (showEditSheet) { ModalBottomSheet(onDismissRequest = { showEditSheet = false }) { Column(modifier = Modifier.padding(bottom = 32.dp)) { Text("Gérer '$collectionName'", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary); ListItem(headlineContent = { Text("Renommer") }, leadingContent = { Icon(Icons.Default.Edit, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showRenameDialog = true }); ListItem(headlineContent = { Text("Déplacer vers un autre dossier") }, leadingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showMoveDialog = true }); ListItem(headlineContent = { Text("Supprimer le dossier", color = MaterialTheme.colorScheme.error) }, leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }, modifier = Modifier.clickable { showEditSheet = false; showDeleteCollectionDialog = true }) } } }
-    if (showMoveDialog) { val validDestinations = viewModel.getValidMoveDestinations(collectionId, allCollections); AlertDialog(onDismissRequest = { showMoveDialog = false }, title = { Text("Déplacer '$collectionName'") }, text = { LazyColumn(modifier = Modifier.fillMaxWidth()) { item { ListItem(headlineContent = { Text("🏠 À la racine (Dashboard)", fontWeight = FontWeight.Bold) }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, null); showMoveDialog = false }); HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }; items(validDestinations) { dest -> ListItem(headlineContent = { Text("📁 ${dest.name}") }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, dest.id); showMoveDialog = false }) } } }, confirmButton = { TextButton(onClick = { showMoveDialog = false }) { Text("Annuler") } }) }
-    if (showTagOptionsDialog) AlertDialog(onDismissRequest = { showTagOptionsDialog = false }, title = { Text("Options : $selectedTagToManage") }, text = { Text("Que souhaitez-vous faire ?") }, confirmButton = { Button(onClick = { renameTagInput = selectedTagToManage; showTagOptionsDialog = false; showRenameTagDialog = true }) { Text("Renommer") } }, dismissButton = { Button(onClick = { showTagOptionsDialog = false; showDeleteTagDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Supprimer") } })
-    if (showRenameTagDialog) AlertDialog(onDismissRequest = { showRenameTagDialog = false }, title = { Text("Renommer l'étiquette") }, text = { OutlinedTextField(value = renameTagInput, onValueChange = { renameTagInput = it }, singleLine = true) }, confirmButton = { Button(onClick = { if (renameTagInput.isNotBlank()) { viewModel.renameTag(collectionId, selectedTagToManage, renameTagInput.trim()); if (selectedTagFilter == selectedTagToManage) selectedTagFilter = renameTagInput.trim(); showRenameTagDialog = false } }) { Text("Enregistrer") } }, dismissButton = { TextButton(onClick = { showRenameTagDialog = false }) { Text("Annuler") } })
-    if (showDeleteTagDialog) AlertDialog(onDismissRequest = { showDeleteTagDialog = false }, title = { Text("Supprimer l'étiquette ?") }, text = { Text("Voulez-vous supprimer l'étiquette \"$selectedTagToManage\" de tous vos objets ?") }, confirmButton = { Button(onClick = { val tagToDelete = dbTags.find { it.name == selectedTagToManage }; tagToDelete?.let { viewModel.deleteTag(it) }; if (selectedTagFilter == selectedTagToManage) selectedTagFilter = "Toutes"; showDeleteTagDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Confirmer") } }, dismissButton = { TextButton(onClick = { showDeleteTagDialog = false }) { Text("Annuler") } })
-    if (showRenameDialog) AlertDialog(onDismissRequest = { showRenameDialog = false }, title = { Text("Renommer la collection") }, text = { OutlinedTextField(value = renameInput, onValueChange = { renameInput = it }, singleLine = true) }, confirmButton = { Button(onClick = { if (renameInput.isNotBlank()) { viewModel.renameCollection(collectionId, renameInput.trim()); showRenameDialog = false } }) { Text("Enregistrer") } }, dismissButton = { TextButton(onClick = { showRenameDialog = false }) { Text("Annuler") } })
-    if (showDeleteCollectionDialog) AlertDialog(onDismissRequest = { showDeleteCollectionDialog = false }, title = { Text("Tout supprimer ?") }, text = { Text("Attention ! Cette action supprimera également tous les sous-dossiers et objets.") }, confirmButton = { Button(onClick = { viewModel.deleteCollection(collectionId); showDeleteCollectionDialog = false; onBackClick() }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Tout supprimer") } }, dismissButton = { TextButton(onClick = { showDeleteCollectionDialog = false }) { Text("Annuler") } })
-    if (showAddSubCollectionDialog) AlertDialog(onDismissRequest = { showAddSubCollectionDialog = false; newSubCollectionName = "" }, title = { Text("Nouveau sous-dossier") }, text = { OutlinedTextField(value = newSubCollectionName, onValueChange = { newSubCollectionName = it }, label = { Text("Nom du dossier") }, singleLine = true) }, confirmButton = { Button(onClick = { if (newSubCollectionName.isNotBlank()) { viewModel.insertCollection(newSubCollectionName.trim(), parentId = collectionId); showAddSubCollectionDialog = false; newSubCollectionName = "" } }) { Text("Créer") } }, dismissButton = { TextButton(onClick = { showAddSubCollectionDialog = false; newSubCollectionName = "" }) { Text("Annuler") } })
+    if (showAddSheet) { ModalBottomSheet(onDismissRequest = { showAddSheet = false }) { Column(modifier = Modifier.padding(bottom = 32.dp)) { Text(stringResource(R.string.add_title), modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary); ListItem(headlineContent = { Text(stringResource(R.string.add_new_item), fontWeight = FontWeight.Medium) }, leadingContent = { Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }, modifier = Modifier.clickable { showAddSheet = false; onAddItemClick() }); ListItem(headlineContent = { Text(stringResource(R.string.add_new_subfolder), fontWeight = FontWeight.Medium) }, leadingContent = { Text("📁", fontSize = 20.sp) }, modifier = Modifier.clickable { showAddSheet = false; showAddSubCollectionDialog = true }) } } }
+    if (showEditSheet) { ModalBottomSheet(onDismissRequest = { showEditSheet = false }) { Column(modifier = Modifier.padding(bottom = 32.dp)) { Text(stringResource(R.string.manage_folder, collectionName), modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary); ListItem(headlineContent = { Text(stringResource(R.string.rename)) }, leadingContent = { Icon(Icons.Default.Edit, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showRenameDialog = true }); ListItem(headlineContent = { Text(stringResource(R.string.move_folder)) }, leadingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showMoveDialog = true }); ListItem(headlineContent = { Text(stringResource(R.string.delete_folder), color = MaterialTheme.colorScheme.error) }, leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }, modifier = Modifier.clickable { showEditSheet = false; showDeleteCollectionDialog = true }) } } }
+    if (showMoveDialog) { val validDestinations = viewModel.getValidMoveDestinations(collectionId, allCollections); AlertDialog(onDismissRequest = { showMoveDialog = false }, title = { Text(stringResource(R.string.move_folder)) }, text = { LazyColumn(modifier = Modifier.fillMaxWidth()) { item { ListItem(headlineContent = { Text(stringResource(R.string.move_to_root), fontWeight = FontWeight.Bold) }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, null); showMoveDialog = false }); HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }; items(validDestinations) { dest -> ListItem(headlineContent = { Text("📁 ${dest.name}") }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, dest.id); showMoveDialog = false }) } } }, confirmButton = { TextButton(onClick = { showMoveDialog = false }) { Text(stringResource(R.string.cancel)) } }) }
+    if (showTagOptionsDialog) AlertDialog(onDismissRequest = { showTagOptionsDialog = false }, title = { Text(stringResource(R.string.tag_options_title, selectedTagToManage)) }, text = { Text(stringResource(R.string.tag_options_subtitle)) }, confirmButton = { Button(onClick = { renameTagInput = selectedTagToManage; showTagOptionsDialog = false; showRenameTagDialog = true }) { Text(stringResource(R.string.rename)) } }, dismissButton = { Button(onClick = { showTagOptionsDialog = false; showDeleteTagDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.delete_folder).replace("le dossier", "")) } })
+    if (showRenameTagDialog) AlertDialog(onDismissRequest = { showRenameTagDialog = false }, title = { Text(stringResource(R.string.rename)) }, text = { OutlinedTextField(value = renameTagInput, onValueChange = { renameTagInput = it }, singleLine = true) }, confirmButton = { Button(onClick = { if (renameTagInput.isNotBlank()) { viewModel.renameTag(collectionId, selectedTagToManage, renameTagInput.trim()); if (selectedTagFilter == selectedTagToManage) selectedTagFilter = renameTagInput.trim(); showRenameTagDialog = false } }) { Text(stringResource(R.string.btn_save)) } }, dismissButton = { TextButton(onClick = { showRenameTagDialog = false }) { Text(stringResource(R.string.cancel)) } })
+    if (showDeleteTagDialog) AlertDialog(onDismissRequest = { showDeleteTagDialog = false }, title = { Text(stringResource(R.string.delete_tag_title)) }, text = { Text(stringResource(R.string.delete_tag_warning, selectedTagToManage)) }, confirmButton = { Button(onClick = { val tagToDelete = dbTags.find { it.name == selectedTagToManage }; tagToDelete?.let { viewModel.deleteTag(it) }; if (selectedTagFilter == selectedTagToManage) selectedTagFilter = "Toutes"; showDeleteTagDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.create).replace("Créer", "Confirmer")) } }, dismissButton = { TextButton(onClick = { showDeleteTagDialog = false }) { Text(stringResource(R.string.cancel)) } })
+    if (showRenameDialog) AlertDialog(onDismissRequest = { showRenameDialog = false }, title = { Text(stringResource(R.string.rename)) }, text = { OutlinedTextField(value = renameInput, onValueChange = { renameInput = it }, singleLine = true) }, confirmButton = { Button(onClick = { if (renameInput.isNotBlank()) { viewModel.renameCollection(collectionId, renameInput.trim()); showRenameDialog = false } }) { Text(stringResource(R.string.btn_save)) } }, dismissButton = { TextButton(onClick = { showRenameDialog = false }) { Text(stringResource(R.string.cancel)) } })
+    if (showDeleteCollectionDialog) AlertDialog(onDismissRequest = { showDeleteCollectionDialog = false }, title = { Text(stringResource(R.string.delete_item_title).replace("l\'objet", "la collection")) }, text = { Text(stringResource(R.string.delete_folder_warning)) }, confirmButton = { Button(onClick = { viewModel.deleteCollection(collectionId); showDeleteCollectionDialog = false; onBackClick() }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.delete_folder).replace(" la collection", "")) } }, dismissButton = { TextButton(onClick = { showDeleteCollectionDialog = false }) { Text(stringResource(R.string.cancel)) } })
+    if (showAddSubCollectionDialog) AlertDialog(onDismissRequest = { showAddSubCollectionDialog = false; newSubCollectionName = "" }, title = { Text(stringResource(R.string.new_subfolder_title)) }, text = { OutlinedTextField(value = newSubCollectionName, onValueChange = { newSubCollectionName = it }, label = { Text(stringResource(R.string.new_subfolder_label)) }, singleLine = true) }, confirmButton = { Button(onClick = { if (newSubCollectionName.isNotBlank()) { viewModel.insertCollection(newSubCollectionName.trim(), parentId = collectionId); showAddSubCollectionDialog = false; newSubCollectionName = "" } }) { Text(stringResource(R.string.create)) } }, dismissButton = { TextButton(onClick = { showAddSubCollectionDialog = false; newSubCollectionName = "" }) { Text(stringResource(R.string.cancel)) } })
 }
 
 @OptIn(ExperimentalFoundationApi::class)
