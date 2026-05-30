@@ -1,5 +1,6 @@
 package com.pokyx.gollections.ui.viewmodels
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pokyx.gollections.data.Tag
@@ -8,6 +9,7 @@ import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.CollectionDao
 import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.data.CollectionItemDao
+import com.pokyx.gollections.data.repository.ImageProcessorRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -26,7 +28,8 @@ import javax.inject.Inject
 class CollectionViewModel @Inject constructor(
     private val collectionItemDao: CollectionItemDao,
     private val collectionDao: CollectionDao,
-    private val tagDao: TagDao
+    private val tagDao: TagDao,
+    private val imageProcessor: ImageProcessorRepository // Ajout du Repository
 ) : ViewModel() {
 
     val allItems: StateFlow<List<CollectionItem>> = collectionItemDao.getAllItems().stateIn(scope = viewModelScope, started = SharingStarted.WhileSubscribed(5000), initialValue = emptyList())
@@ -93,6 +96,14 @@ class CollectionViewModel @Inject constructor(
                 val newTags = item.tags.split(",").map { if (it == oldName) newName else it }.joinToString(",")
                 collectionItemDao.updateItem(item.copy(tags = newTags))
             }
+        }
+    }
+
+    // --- NOUVELLE FONCTION : TRAITEMENT D'IMAGE VIA LE REPOSITORY ---
+    fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            val resultUri = imageProcessor.processImage(sourceUri, shouldCutout)
+            onResult(resultUri?.toString())
         }
     }
 }

@@ -1,11 +1,6 @@
 package com.pokyx.gollections.ui.screens
 
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -32,14 +27,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle // Import crucial
 import coil.compose.AsyncImage
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
-import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
 import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
 import java.io.File
-import java.io.FileOutputStream
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -65,11 +57,10 @@ fun AddItemScreen(
     var isLoaned by remember { mutableStateOf(false) }
     var loanTo by remember { mutableStateOf("") }
     var loanDate by remember { mutableStateOf(todayDate) }
-
-    // LA LIGNE MANQUANTE ÉTAIT CELLE-CI :
     var imageUrl by remember { mutableStateOf("") }
 
-    val collectionsList by viewModel.collections.collectAsState()
+    // Utilisation de collectAsStateWithLifecycle() au lieu de collectAsState()
+    val collectionsList by viewModel.collections.collectAsStateWithLifecycle()
     var selectedPath by remember { mutableStateOf(listOf<Long>()) }
 
     LaunchedEffect(preSelectedCollectionId, collectionsList) {
@@ -84,7 +75,8 @@ fun AddItemScreen(
     val finalSelectedId = selectedPath.lastOrNull()
     val finalSelectedName = collectionsList.find { it.id == finalSelectedId }?.name ?: ""
 
-    val dbTags by viewModel.getTagsForCollections(selectedPath).collectAsState(initial = emptyList())
+    // Utilisation de collectAsStateWithLifecycle()
+    val dbTags by viewModel.getTagsForCollections(selectedPath).collectAsStateWithLifecycle(initialValue = emptyList())
     val availableTags = dbTags.map { it.name }.distinct()
     var selectedTags by remember { mutableStateOf(setOf<String>()) }
 
@@ -103,6 +95,7 @@ fun AddItemScreen(
     var isProcessingImage by remember { mutableStateOf(false) }
     var tempPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var pendingImageUri by remember { mutableStateOf<Uri?>(null) }
+
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) { pendingImageUri = uri; showDetourageConfirmation = true } }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success -> if (success && tempPhotoUri != null) { pendingImageUri = tempPhotoUri; showDetourageConfirmation = true } }
 
@@ -119,7 +112,6 @@ fun AddItemScreen(
 
             OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Titre") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
-            // --- SÉLECTEUR DE DOSSIERS COMPACT ---
             if (collectionsList.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(text = "Emplacement", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
@@ -144,7 +136,6 @@ fun AddItemScreen(
                 }
             }
 
-            // --- ÉTIQUETTES ---
             if (availableTags.isNotEmpty() || selectedPath.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(text = "Étiquettes", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
@@ -218,7 +209,39 @@ fun AddItemScreen(
         if (showLoanDatePicker) DatePickerDialog(onDismissRequest = { showLoanDatePicker = false }, confirmButton = { TextButton(onClick = { loanDatePickerState.selectedDateMillis?.let { millis -> loanDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) }; showLoanDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showLoanDatePicker = false }) { Text("Annuler") } }) { DatePicker(state = loanDatePickerState) }
 
         if (showSourceDialog) AlertDialog(onDismissRequest = { showSourceDialog = false }, title = { Text("Illustration") }, text = { Text("Choisissez la source") }, confirmButton = { Button(onClick = { showSourceDialog = false; val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir); tempPhotoUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile); cameraLauncher.launch(tempPhotoUri!!) }) { Text("📷 Appareil Photo") } }, dismissButton = { Button(onClick = { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text("📁 Galerie") } })
-        if (showDetourageConfirmation) AlertDialog(onDismissRequest = { showDetourageConfirmation = false }, title = { Text("Détourage intelligent ✨") }, text = { Text("Détourer l'objet ?") }, confirmButton = { Button(onClick = { showDetourageConfirmation = false; pendingImageUri?.let { uri -> isProcessingImage = true; runSubjectSegmentation(context, uri, true) { finalUri -> isProcessingImage = false; if (finalUri != null) imageUrl = finalUri.toString() } } }) { Text("Oui") } }, dismissButton = { TextButton(onClick = { showDetourageConfirmation = false; pendingImageUri?.let { uri -> isProcessingImage = true; runSubjectSegmentation(context, uri, false) { finalUri -> isProcessingImage = false; if (finalUri != null) imageUrl = finalUri.toString() } } }) { Text("Non") } })
+
+        if (showDetourageConfirmation) AlertDialog(
+            onDismissRequest = { showDetourageConfirmation = false },
+            title = { Text("Détourage intelligent ✨") },
+            text = { Text("Détourer l'objet ?") },
+            confirmButton = {
+                Button(onClick = {
+                    showDetourageConfirmation = false
+                    pendingImageUri?.let { uri ->
+                        isProcessingImage = true
+                        // Appel propre au ViewModel
+                        viewModel.processAndSaveImage(uri, true) { finalUrl ->
+                            isProcessingImage = false
+                            if (finalUrl != null) imageUrl = finalUrl
+                            else Toast.makeText(context, "Erreur lors du détourage", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }) { Text("Oui") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDetourageConfirmation = false
+                    pendingImageUri?.let { uri ->
+                        isProcessingImage = true
+                        // Appel propre au ViewModel sans détourage
+                        viewModel.processAndSaveImage(uri, false) { finalUrl ->
+                            isProcessingImage = false
+                            if (finalUrl != null) imageUrl = finalUrl
+                        }
+                    }
+                }) { Text("Non") }
+            }
+        )
     }
 }
 
@@ -231,12 +254,3 @@ fun getDynamicStatusOptions(collectionName: String): List<String> {
         else -> listOf("Nouveau", "En cours", "Terminé")
     }
 }
-fun runSubjectSegmentation(context: Context, sourceUri: Uri, shouldCutout: Boolean, onComplete: (Uri?) -> Unit) {
-    try {
-        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) { ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, sourceUri)) { decoder, _, _ -> decoder.isMutableRequired = true } } else { @Suppress("DEPRECATION") MediaStore.Images.Media.getBitmap(context.contentResolver, sourceUri) }
-        if (!shouldCutout) { onComplete(saveBitmapToInternalStorage(context, bitmap)); return }
-        val options = SubjectSegmenterOptions.Builder().enableForegroundBitmap().build(); val segmenter = SubjectSegmentation.getClient(options)
-        segmenter.process(InputImage.fromBitmap(bitmap, 0)).addOnSuccessListener { result -> val cutoutBitmap = result.foregroundBitmap; if (cutoutBitmap != null) onComplete(saveBitmapToInternalStorage(context, cutoutBitmap)) else { onComplete(saveBitmapToInternalStorage(context, bitmap)); Toast.makeText(context, "Sujet non détecté.", Toast.LENGTH_SHORT).show() } }.addOnFailureListener { onComplete(saveBitmapToInternalStorage(context, bitmap)) }
-    } catch (e: Exception) { e.printStackTrace(); onComplete(null) }
-}
-fun saveBitmapToInternalStorage(context: Context, bitmap: Bitmap): Uri { val file = File(context.filesDir, "gollections_img_${System.currentTimeMillis()}.png"); FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }; return Uri.fromFile(file) }
