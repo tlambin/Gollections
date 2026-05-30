@@ -15,10 +15,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -27,24 +30,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle // Import crucial
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.data.CollectionItem
+import com.pokyx.gollections.data.tag.Tag
 import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
+import com.pokyx.gollections.utils.AddTagDialog
+import com.pokyx.gollections.utils.getDynamicStatusOptions
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.ui.graphics.Color
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddItemScreen(
     preSelectedCollectionId: Long? = null,
     onBackClick: () -> Unit,
-    onSaveClick: (CollectionItem) -> Unit,
+    onSaveClick: (CollectionItem, List<Tag>) -> Unit,
     viewModel: CollectionViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -59,7 +63,6 @@ fun AddItemScreen(
     var loanDate by remember { mutableStateOf(todayDate) }
     var imageUrl by remember { mutableStateOf("") }
 
-    // Utilisation de collectAsStateWithLifecycle() au lieu de collectAsState()
     val collectionsList by viewModel.collections.collectAsStateWithLifecycle()
     var selectedPath by remember { mutableStateOf(listOf<Long>()) }
 
@@ -75,10 +78,9 @@ fun AddItemScreen(
     val finalSelectedId = selectedPath.lastOrNull()
     val finalSelectedName = collectionsList.find { it.id == finalSelectedId }?.name ?: ""
 
-    // Utilisation de collectAsStateWithLifecycle()
     val dbTags by viewModel.getTagsForCollections(selectedPath).collectAsStateWithLifecycle(initialValue = emptyList())
-    val availableTags = dbTags.map { it.name }.distinct()
-    var selectedTags by remember { mutableStateOf(setOf<String>()) }
+    var selectedTags by remember { mutableStateOf(setOf<Tag>()) }
+    var showAddTagDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(finalSelectedId) {
         val options = getDynamicStatusOptions(finalSelectedName)
@@ -136,18 +138,35 @@ fun AddItemScreen(
                 }
             }
 
-            if (availableTags.isNotEmpty() || selectedPath.isNotEmpty()) {
+            // --- SECTION ÉTIQUETTES MODIFIÉE ---
+            if (selectedPath.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = "Étiquettes", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
-                    if (availableTags.isEmpty()) {
-                        Text("Aucune étiquette disponible.", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Étiquettes", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        IconButton(onClick = { showAddTagDialog = true }) {
+                            Icon(Icons.Default.Add, contentDescription = "Ajouter un tag", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+
+                    if (dbTags.isEmpty()) {
+                        Text("Aucune étiquette disponible. Cliquez sur + pour en créer une.", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
                     } else {
                         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            availableTags.forEach { tag ->
+                            dbTags.distinctBy { it.name }.forEach { tag ->
                                 FilterChip(
-                                    selected = selectedTags.contains(tag),
-                                    onClick = { if (selectedTags.contains(tag)) selectedTags -= tag else selectedTags += tag },
-                                    label = { Text(tag) }
+                                    selected = selectedTags.any { it.name == tag.name },
+                                    onClick = {
+                                        if (selectedTags.any { it.name == tag.name }) {
+                                            selectedTags = selectedTags.filter { it.name != tag.name }.toSet()
+                                        } else {
+                                            selectedTags = selectedTags + tag
+                                        }
+                                    },
+                                    label = { Text(tag.name) }
                                 )
                             }
                         }
@@ -194,11 +213,10 @@ fun AddItemScreen(
                     if (title.isNotBlank() && finalSelectedId != null) {
                         val newItem = CollectionItem(
                             title = title, collectionId = finalSelectedId,
-                            tags = selectedTags.joinToString(","),
                             purchaseDate = purchaseDate.trim(), price = price.trim(), imageUrl = imageUrl,
                             status = status, isLoaned = isLoaned, loanTo = if (isLoaned) loanTo.trim() else "", loanDate = if (isLoaned) loanDate else ""
                         )
-                        onSaveClick(newItem)
+                        onSaveClick(newItem, selectedTags.toList())
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp), enabled = title.isNotBlank() && finalSelectedId != null
@@ -219,7 +237,6 @@ fun AddItemScreen(
                     showDetourageConfirmation = false
                     pendingImageUri?.let { uri ->
                         isProcessingImage = true
-                        // Appel propre au ViewModel
                         viewModel.processAndSaveImage(uri, true) { finalUrl ->
                             isProcessingImage = false
                             if (finalUrl != null) imageUrl = finalUrl
@@ -233,7 +250,6 @@ fun AddItemScreen(
                     showDetourageConfirmation = false
                     pendingImageUri?.let { uri ->
                         isProcessingImage = true
-                        // Appel propre au ViewModel sans détourage
                         viewModel.processAndSaveImage(uri, false) { finalUrl ->
                             isProcessingImage = false
                             if (finalUrl != null) imageUrl = finalUrl
@@ -242,15 +258,16 @@ fun AddItemScreen(
                 }) { Text("Non") }
             }
         )
-    }
-}
 
-fun getDynamicStatusOptions(collectionName: String): List<String> {
-    return when (collectionName.lowercase().trim()) {
-        "blu-ray", "films", "cinéma", "cinema" -> listOf("À voir", "En cours", "Vu")
-        "livres", "mangas", "bd", "romans" -> listOf("À lire", "En cours", "Lu")
-        "jeux vidéo", "jeux", "jeux video" -> listOf("À faire", "En cours", "Terminé", "Platiné", "Abandonné")
-        "vinyles", "musique", "cd", "disques" -> listOf("À écouter", "Écouté")
-        else -> listOf("Nouveau", "En cours", "Terminé")
+        // --- Appel du dialogue d'ajout de tag ---
+        if (showAddTagDialog && finalSelectedId != null) {
+            AddTagDialog(
+                onDismiss = { showAddTagDialog = false },
+                onConfirm = { tagName ->
+                    viewModel.insertTag(tagName, finalSelectedId)
+                    showAddTagDialog = false
+                }
+            )
+        }
     }
 }

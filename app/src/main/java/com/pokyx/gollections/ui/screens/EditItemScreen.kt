@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,7 +33,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.data.CollectionItem
+import com.pokyx.gollections.data.tag.Tag
 import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
+import com.pokyx.gollections.utils.AddTagDialog
+import com.pokyx.gollections.utils.getDynamicStatusOptions
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -43,13 +47,12 @@ import java.time.format.DateTimeFormatter
 fun EditItemScreen(
     itemId: Int,
     onBackClick: () -> Unit,
-    onSaveClick: (CollectionItem) -> Unit,
+    onSaveClick: (CollectionItem, List<Tag>) -> Unit,
     viewModel: CollectionViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
 
-    // Collecte de l'objet à modifier avec gestion saine du cycle de vie
-    val item by viewModel.getItemById(itemId).collectAsStateWithLifecycle(initialValue = null)
+    val itemWithTags by viewModel.getItemByIdWithTags(itemId).collectAsStateWithLifecycle(initialValue = null)
     val collectionsList by viewModel.collections.collectAsStateWithLifecycle()
 
     var title by remember { mutableStateOf("") }
@@ -62,12 +65,13 @@ fun EditItemScreen(
     var imageUrl by remember { mutableStateOf("") }
 
     var selectedPath by remember { mutableStateOf(listOf<Long>()) }
-    var selectedTags by remember { mutableStateOf(setOf<String>()) }
+    var selectedTags by remember { mutableStateOf(setOf<Tag>()) }
+    var showAddTagDialog by remember { mutableStateOf(false) }
 
-    // Initialisation des états locaux une fois que l'objet est chargé depuis Room
-    LaunchedEffect(item, collectionsList) {
-        item?.let { currentItem ->
-            if (title.isEmpty()) { // Évite de réinitialiser si l'utilisateur est déjà en cours d'édition
+    LaunchedEffect(itemWithTags, collectionsList) {
+        itemWithTags?.let { currentItemWithTags ->
+            val currentItem = currentItemWithTags.item
+            if (title.isEmpty()) {
                 title = currentItem.title
                 purchaseDate = currentItem.purchaseDate
                 price = currentItem.price
@@ -76,9 +80,8 @@ fun EditItemScreen(
                 loanTo = currentItem.loanTo
                 loanDate = currentItem.loanDate
                 imageUrl = currentItem.imageUrl
-                selectedTags = currentItem.tags.split(",").filter { it.isNotBlank() }.toSet()
+                selectedTags = currentItemWithTags.tags.toSet()
 
-                // Reconstruction automatique du chemin des collections parentes
                 val path = mutableListOf<Long>()
                 var curr: Long? = currentItem.collectionId
                 while (curr != null) {
@@ -94,7 +97,13 @@ fun EditItemScreen(
     val finalSelectedName = collectionsList.find { it.id == finalSelectedId }?.name ?: ""
 
     val dbTags by viewModel.getTagsForCollections(selectedPath).collectAsStateWithLifecycle(initialValue = emptyList())
-    val availableTags = dbTags.map { it.name }.distinct()
+
+    LaunchedEffect(finalSelectedId) {
+        if (finalSelectedName.isNotEmpty()) {
+            val options = getDynamicStatusOptions(finalSelectedName)
+            if (status !in options) status = options.first()
+        }
+    }
 
     var showPurchaseDatePicker by remember { mutableStateOf(false) }
     val purchaseDatePickerState = rememberDatePickerState()
@@ -123,7 +132,6 @@ fun EditItemScreen(
 
             OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Titre") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
-            // --- SÉLECTEUR DE DOSSIERS COMPACT ---
             if (collectionsList.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(text = "Emplacement", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
@@ -148,19 +156,35 @@ fun EditItemScreen(
                 }
             }
 
-            // --- ÉTIQUETTES ---
-            if (availableTags.isNotEmpty() || selectedPath.isNotEmpty()) {
+            // --- SECTION ÉTIQUETTES MODIFIÉE ---
+            if (selectedPath.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = "Étiquettes", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
-                    if (availableTags.isEmpty()) {
-                        Text("Aucune étiquette disponible.", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Étiquettes", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        IconButton(onClick = { showAddTagDialog = true }) {
+                            Icon(Icons.Default.Add, contentDescription = "Ajouter un tag", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+
+                    if (dbTags.isEmpty()) {
+                        Text("Aucune étiquette disponible. Cliquez sur + pour en créer une.", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
                     } else {
                         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            availableTags.forEach { tag ->
+                            dbTags.distinctBy { it.name }.forEach { tag ->
                                 FilterChip(
-                                    selected = selectedTags.contains(tag),
-                                    onClick = { if (selectedTags.contains(tag)) selectedTags -= tag else selectedTags += tag },
-                                    label = { Text(tag) }
+                                    selected = selectedTags.any { it.name == tag.name },
+                                    onClick = {
+                                        if (selectedTags.any { it.name == tag.name }) {
+                                            selectedTags = selectedTags.filter { it.name != tag.name }.toSet()
+                                        } else {
+                                            selectedTags = selectedTags + tag
+                                        }
+                                    },
+                                    label = { Text(tag.name) }
                                 )
                             }
                         }
@@ -204,11 +228,10 @@ fun EditItemScreen(
             Spacer(modifier = Modifier.height(30.dp))
             Button(
                 onClick = {
-                    if (title.isNotBlank() && finalSelectedId != null && item != null) {
-                        val updatedItem = item!!.copy(
+                    if (title.isNotBlank() && finalSelectedId != null && itemWithTags != null) {
+                        val updatedItem = itemWithTags!!.item.copy(
                             title = title,
                             collectionId = finalSelectedId,
-                            tags = selectedTags.joinToString(","),
                             purchaseDate = purchaseDate.trim(),
                             price = price.trim(),
                             imageUrl = imageUrl,
@@ -217,11 +240,11 @@ fun EditItemScreen(
                             loanTo = if (isLoaned) loanTo.trim() else "",
                             loanDate = if (isLoaned) loanDate else ""
                         )
-                        onSaveClick(updatedItem)
+                        onSaveClick(updatedItem, selectedTags.toList())
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = title.isNotBlank() && finalSelectedId != null && item != null
+                enabled = title.isNotBlank() && finalSelectedId != null && itemWithTags != null
             ) { Text("Enregistrer les modifications", fontSize = 16.sp) }
         }
 
@@ -260,5 +283,15 @@ fun EditItemScreen(
                 }) { Text("Non") }
             }
         )
+
+        if (showAddTagDialog && finalSelectedId != null) {
+            AddTagDialog(
+                onDismiss = { showAddTagDialog = false },
+                onConfirm = { tagName ->
+                    viewModel.insertTag(tagName, finalSelectedId)
+                    showAddTagDialog = false
+                }
+            )
+        }
     }
 }

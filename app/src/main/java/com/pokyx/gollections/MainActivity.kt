@@ -4,6 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -13,23 +17,19 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import com.pokyx.gollections.ui.screens.DashboardScreen
-import com.pokyx.gollections.ui.screens.CollectionListScreen
-import com.pokyx.gollections.ui.screens.AddItemScreen
-import com.pokyx.gollections.ui.screens.ItemDetailScreen
-import com.pokyx.gollections.ui.screens.EditItemScreen
-import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
-import com.pokyx.gollections.ui.navigation.DashboardRoute
-import com.pokyx.gollections.ui.navigation.CollectionListRoute
 import com.pokyx.gollections.ui.navigation.AddItemRoute
-import com.pokyx.gollections.ui.navigation.ItemDetailRoute
+import com.pokyx.gollections.ui.navigation.CollectionListRoute
+import com.pokyx.gollections.ui.navigation.DashboardRoute
 import com.pokyx.gollections.ui.navigation.EditItemRoute
+import com.pokyx.gollections.ui.navigation.ItemDetailRoute
+import com.pokyx.gollections.ui.screens.AddItemScreen
+import com.pokyx.gollections.ui.screens.CollectionListScreen
+import com.pokyx.gollections.ui.screens.DashboardScreen
+import com.pokyx.gollections.ui.screens.EditItemScreen
+import com.pokyx.gollections.ui.screens.ItemDetailScreen
 import com.pokyx.gollections.ui.theme.GollectionsTheme
+import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
 import dagger.hilt.android.AndroidEntryPoint
-import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
+                    val globalViewModel: CollectionViewModel = hiltViewModel()
 
                     NavHost(
                         navController = navController,
@@ -55,6 +56,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable<DashboardRoute> {
                             DashboardScreen(
+                                viewModel = globalViewModel,
                                 onCollectionClick = { collectionId ->
                                     navController.navigate(CollectionListRoute(collectionId = collectionId))
                                 },
@@ -66,11 +68,10 @@ class MainActivity : ComponentActivity() {
 
                         composable<CollectionListRoute> { backStackEntry ->
                             val route: CollectionListRoute = backStackEntry.toRoute()
-                            val viewModel: CollectionViewModel = hiltViewModel()
 
                             CollectionListScreen(
                                 collectionId = route.collectionId,
-                                viewModel = viewModel,
+                                viewModel = globalViewModel,
                                 onBackClick = { navController.popBackStack() },
                                 onItemClick = { itemId ->
                                     navController.navigate(ItemDetailRoute(itemId = itemId))
@@ -86,13 +87,13 @@ class MainActivity : ComponentActivity() {
 
                         composable<AddItemRoute> { backStackEntry ->
                             val route: AddItemRoute = backStackEntry.toRoute()
-                            val viewModel: CollectionViewModel = hiltViewModel()
 
                             AddItemScreen(
                                 preSelectedCollectionId = route.preSelectedCollectionId,
+                                viewModel = globalViewModel,
                                 onBackClick = { navController.popBackStack() },
-                                onSaveClick = { newItem ->
-                                    viewModel.insertItem(newItem)
+                                onSaveClick = { newItem, tags ->
+                                    globalViewModel.insertItemWithTags(newItem, tags)
                                     navController.popBackStack()
                                 }
                             )
@@ -102,6 +103,7 @@ class MainActivity : ComponentActivity() {
                             val route: ItemDetailRoute = backStackEntry.toRoute()
                             ItemDetailScreen(
                                 itemId = route.itemId,
+                                viewModel = globalViewModel,
                                 onBackClick = { navController.popBackStack() },
                                 onEditClick = { id ->
                                     navController.navigate(EditItemRoute(itemId = id))
@@ -111,13 +113,13 @@ class MainActivity : ComponentActivity() {
 
                         composable<EditItemRoute> { backStackEntry ->
                             val route: EditItemRoute = backStackEntry.toRoute()
-                            val viewModel: CollectionViewModel = hiltViewModel()
 
                             EditItemScreen(
                                 itemId = route.itemId,
+                                viewModel = globalViewModel,
                                 onBackClick = { navController.popBackStack() },
-                                onSaveClick = { updatedItem ->
-                                    viewModel.updateItem(updatedItem)
+                                onSaveClick = { updatedItem, tags ->
+                                    globalViewModel.updateItemWithTags(updatedItem, tags)
                                     navController.popBackStack()
                                 }
                             )

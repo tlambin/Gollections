@@ -4,14 +4,13 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.sqlite.db.SupportSQLiteDatabase
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.pokyx.gollections.data.tag.Tag
+import com.pokyx.gollections.data.tag.TagDao
+import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
 
 @Database(
-    entities = [CollectionItem::class, Collection::class, Tag::class],
-    version = 9,
+    entities = [CollectionItem::class, Collection::class, Tag::class, CollectionItemTagCrossRef::class],
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,39 +31,9 @@ abstract class AppDatabase : RoomDatabase() {
                     "gollections_database"
                 )
                     .fallbackToDestructiveMigration(dropAllTables = true)
-                    .addCallback(AppDatabaseCallback())
                     .build()
                 INSTANCE = instance
                 instance
-            }
-        }
-    }
-
-    private class AppDatabaseCallback : RoomDatabase.Callback() {
-        override fun onCreate(db: SupportSQLiteDatabase) {
-            super.onCreate(db)
-            INSTANCE?.let { database ->
-                CoroutineScope(Dispatchers.IO).launch {
-                    val colDao = database.collectionDao()
-
-                    val idBluRay = 1L
-                    val idJeuxVideo = 2L
-                    val idVinyles = 3L
-
-                    colDao.insertCollection(Collection(id = idBluRay, name = "Blu-ray"))
-                    colDao.insertCollection(Collection(id = idJeuxVideo, name = "Jeux Vidéo"))
-                    colDao.insertCollection(Collection(id = idVinyles, name = "Vinyles"))
-
-                    val tagDao = database.tagDao()
-                    tagDao.insertTag(Tag(name = "4K", collectionId = idBluRay))
-                    tagDao.insertTag(Tag(name = "3D", collectionId = idBluRay))
-                    tagDao.insertTag(Tag(name = "Steelbook", collectionId = idBluRay))
-
-                    tagDao.insertTag(Tag(name = "Switch", collectionId = idJeuxVideo))
-                    tagDao.insertTag(Tag(name = "PC", collectionId = idJeuxVideo))
-                    tagDao.insertTag(Tag(name = "PS5", collectionId = idJeuxVideo))
-                    tagDao.insertTag(Tag(name = "Xbox", collectionId = idJeuxVideo))
-                }
             }
         }
     }

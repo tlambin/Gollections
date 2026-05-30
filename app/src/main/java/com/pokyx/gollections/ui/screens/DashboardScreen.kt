@@ -19,14 +19,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.pokyx.gollections.data.Collection
-import com.pokyx.gollections.data.CollectionItem
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pokyx.gollections.data.Collection as DBCollection
 import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
+import com.pokyx.gollections.utils.getEmojiForCollection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,11 +36,11 @@ fun DashboardScreen(
     onAddItemClick: () -> Unit,
     viewModel: CollectionViewModel = hiltViewModel()
 ) {
-    val rootCollections by viewModel.rootCollections.collectAsState()
-    val allCollections by viewModel.collections.collectAsState()
-    val allItems by viewModel.allItems.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val searchResults by viewModel.searchedItems.collectAsState()
+    val rootCollections by viewModel.rootCollections.collectAsStateWithLifecycle()
+    val allCollections by viewModel.collections.collectAsStateWithLifecycle()
+    val allItemsWithTags by viewModel.allItemsWithTags.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val searchResultsWithTags by viewModel.searchedItemsWithTags.collectAsStateWithLifecycle()
 
     var showAddCollectionDialog by remember { mutableStateOf(false) }
     var newCollectionName by remember { mutableStateOf("") }
@@ -65,17 +66,18 @@ fun DashboardScreen(
             }
 
             if (searchQuery.isEmpty()) {
-                item { StatsSlider(totalItems = allItems.size, totalCollections = rootCollections.size, loanedItems = allItems.count { it.isLoaned }) }
+                item { StatsSlider(totalItems = allItemsWithTags.size, totalCollections = rootCollections.size, loanedItems = allItemsWithTags.count { it.item.isLoaned }) }
                 item { Text(text = "Mes Collections", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
-                item { CollectionsGrid(collections = rootCollections, allCollections = allCollections, items = allItems, onCollectionClick = onCollectionClick, onAddCollectionClick = { showAddCollectionDialog = true }, viewModel = viewModel) }
+                item { CollectionsGrid(collections = rootCollections, allCollections = allCollections, items = allItemsWithTags, onCollectionClick = onCollectionClick, onAddCollectionClick = { showAddCollectionDialog = true }, viewModel = viewModel) }
             } else {
-                item { Text(text = "Résultats de recherche (${searchResults.size})", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
-                if (searchResults.isEmpty()) { item { Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { Text("Aucun objet trouvé 😕", color = Color.Gray) } } }
+                item { Text(text = "Résultats de recherche (${searchResultsWithTags.size})", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
+                if (searchResultsWithTags.isEmpty()) { item { Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { Text("Aucun objet trouvé 😕", color = Color.Gray) } } }
                 else {
-                    items(searchResults) { item ->
+                    items(searchResultsWithTags) { itemWithTags ->
+                        val item = itemWithTags.item
                         val parentCol = allCollections.find { it.id == item.collectionId }
                         val colName = parentCol?.name ?: "Inconnu"
-                        val tagsStr = item.tags.replace(",", " • ")
+                        val tagsStr = itemWithTags.tags.joinToString(" • ") { it.name }
                         ListItem(
                             headlineContent = { Text(item.title, fontWeight = FontWeight.SemiBold) },
                             supportingContent = { if (tagsStr.isNotEmpty()) Text("$colName • $tagsStr") else Text(colName) },
@@ -117,7 +119,7 @@ fun StatsSlider(totalItems: Int, totalCollections: Int, loanedItems: Int) {
 fun StatCardContent(title: String, value: String, sub: String) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(text = title, fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)); Text(text = value, fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer); Text(text = sub, fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)) } }
 
 @Composable
-fun CollectionsGrid(collections: List<Collection>, allCollections: List<Collection>, items: List<CollectionItem>, onCollectionClick: (Long) -> Unit, onAddCollectionClick: () -> Unit, viewModel: CollectionViewModel) {
+fun CollectionsGrid(collections: List<DBCollection>, allCollections: List<DBCollection>, items: List<com.pokyx.gollections.data.tag.CollectionItemWithTags>, onCollectionClick: (Long) -> Unit, onAddCollectionClick: () -> Unit, viewModel: CollectionViewModel) {
     val totalSlots = collections.size + 1
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         for (i in 0 until totalSlots step 2) {
@@ -130,7 +132,7 @@ fun CollectionsGrid(collections: List<Collection>, allCollections: List<Collecti
 }
 
 @Composable
-fun CollectionItemCard(collection: Collection, allCollections: List<Collection>, items: List<CollectionItem>, onCollectionClick: (Long) -> Unit, modifier: Modifier = Modifier, viewModel: CollectionViewModel) {
+fun CollectionItemCard(collection: DBCollection, allCollections: List<DBCollection>, items: List<com.pokyx.gollections.data.tag.CollectionItemWithTags>, onCollectionClick: (Long) -> Unit, modifier: Modifier = Modifier, viewModel: CollectionViewModel) {
     val count = viewModel.getRecursiveItemCount(collection.id, allCollections, items)
     val unit = when (collection.name.lowercase()) {
         "blu-ray", "films" -> if (count <= 1) "film" else "films"
@@ -153,17 +155,5 @@ fun CollectionCard(title: String, count: String, emoji: String, onClick: () -> U
 fun AddCollectionCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(modifier = modifier.height(120.dp).clickable { onClick() }, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) { Icon(imageVector = Icons.Default.Add, contentDescription = "Ajouter une collection", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp)); Spacer(modifier = Modifier.height(8.dp)); Text(text = "Nouvelle", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary) }
-    }
-}
-
-fun getEmojiForCollection(collectionName: String): String {
-    return when (collectionName.lowercase().trim()) {
-        "blu-ray", "bluray", "film", "films", "cinéma", "cinema" -> "🎬"
-        "vinyles", "vinyle", "musique", "disques", "disque", "cd" -> "🎵"
-        "jeux vidéo", "jeux", "jeux video", "gaming", "switch", "ps5" -> "🎮"
-        "livres", "livre", "mangas", "manga", "bd", "romans" -> "📚"
-        "figurines", "figurine", "pop" -> "🧸"
-        "jeux de société", "jeux de societe", "cartes" -> "🎲"
-        else -> "📦"
     }
 }

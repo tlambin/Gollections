@@ -12,7 +12,7 @@ import androidx.room.PrimaryKey
             entity = Collection::class,
             parentColumns = ["id"],
             childColumns = ["collectionId"],
-            onDelete = ForeignKey.CASCADE // Gère automatiquement la suppression si le parent est supprimé
+            onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [Index(value = ["collectionId"])]
@@ -21,7 +21,6 @@ data class CollectionItem(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val title: String,
     val collectionId: Long,
-    val tags: String,
 
     val isLoaned: Boolean = false,
     val loanTo: String = "",

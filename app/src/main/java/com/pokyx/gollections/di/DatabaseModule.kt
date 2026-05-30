@@ -4,7 +4,7 @@ import android.content.Context
 import com.pokyx.gollections.data.AppDatabase
 import com.pokyx.gollections.data.CollectionDao
 import com.pokyx.gollections.data.CollectionItemDao
-import com.pokyx.gollections.data.TagDao
+import com.pokyx.gollections.data.tag.TagDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
