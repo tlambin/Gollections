@@ -59,7 +59,11 @@ fun CollectionListScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedTagFilter by remember { mutableStateOf("Toutes") }
 
-    var showMenu by remember { mutableStateOf(false) }
+    // --- GESTION DES NOUVEAUX PANNEAUX (Bottom Sheets) ---
+    var showAddSheet by remember { mutableStateOf(false) }
+    var showEditSheet by remember { mutableStateOf(false) }
+
+    // --- GESTION DES DIALOGUES ---
     var showRenameDialog by remember { mutableStateOf(false) }
     var showDeleteCollectionDialog by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
@@ -92,60 +96,29 @@ fun CollectionListScreen(
             LargeTopAppBar(
                 title = {
                     val collapsedFraction = scrollBehavior.state.collapsedFraction
-
-                    // Si on a fait défiler l'en-tête à plus de la moitié, on affiche le fil d'Ariane complet
                     if (collapsedFraction > 0.5f) {
-                        Row(
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                             pathCollections.forEachIndexed { index, col ->
                                 val isLast = index == pathCollections.lastIndex
-                                Text(
-                                    text = col.name,
-                                    fontWeight = if (isLast) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 16.sp,
-                                    color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                    modifier = Modifier.clickable(!isLast) { onCollectionClick(col.id) }
-                                )
-                                if (!isLast) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                                        modifier = Modifier.padding(horizontal = 4.dp).size(16.dp)
-                                    )
-                                }
+                                Text(text = col.name, fontWeight = if (isLast) FontWeight.Bold else FontWeight.Medium, fontSize = 16.sp, color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.clickable(!isLast) { onCollectionClick(col.id) })
+                                if (!isLast) Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), modifier = Modifier.padding(horizontal = 4.dp).size(16.dp))
                             }
                         }
                     } else {
-                        // Quand l'en-tête est déplié au maximum, on affiche uniquement le titre épuré
-                        Text(
-                            text = collectionName,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text(text = collectionName, fontWeight = FontWeight.Bold)
                     }
                 },
                 navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour") } },
                 actions = {
-                    Box {
-                        IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Options") }
-                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                            DropdownMenuItem(text = { Text("Nouveau sous-dossier") }, onClick = { showMenu = false; showAddSubCollectionDialog = true }, leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) })
-                            DropdownMenuItem(text = { Text("Renommer") }, onClick = { showMenu = false; showRenameDialog = true }, leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) })
-                            DropdownMenuItem(text = { Text("Déplacer") }, onClick = { showMenu = false; showMoveDialog = true }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp)) })
-                            DropdownMenuItem(text = { Text("Supprimer") }, onClick = { showMenu = false; showDeleteCollectionDialog = true }, leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) })
-                        }
-                    }
+                    // Ouvre désormais le panneau de modification au lieu d'un petit Dropdown
+                    IconButton(onClick = { showEditSheet = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Options du dossier") }
                 },
                 scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = MaterialTheme.colorScheme.background, scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         },
-        floatingActionButton = { FloatingActionButton(onClick = onAddItemClick, containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) { Icon(Icons.Default.Add, contentDescription = "Ajouter", modifier = Modifier.size(28.dp)) } }
+        // Ouvre désormais le panneau de création au lieu d'aller directement à l'écran d'ajout
+        floatingActionButton = { FloatingActionButton(onClick = { showAddSheet = true }, containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) { Icon(Icons.Default.Add, contentDescription = "Ajouter", modifier = Modifier.size(28.dp)) } }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             TextField(value = searchQuery, onValueChange = { viewModel.updateSearchQuery(it) }, placeholder = { Text("Rechercher...") }, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), shape = CircleShape, leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Rechercher", tint = MaterialTheme.colorScheme.primary) }, trailingIcon = { if (searchQuery.isNotEmpty()) { IconButton(onClick = { viewModel.updateSearchQuery("") }) { Icon(Icons.Default.Clear, contentDescription = "Effacer") } } }, colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant), singleLine = true)
@@ -198,6 +171,50 @@ fun CollectionListScreen(
         }
     }
 
+    // --- PANNEAU DE CRÉATION (Au clic sur le +) ---
+    if (showAddSheet) {
+        ModalBottomSheet(onDismissRequest = { showAddSheet = false }) {
+            Column(modifier = Modifier.padding(bottom = 32.dp)) {
+                Text("Ajouter", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                ListItem(
+                    headlineContent = { Text("Un nouvel objet", fontWeight = FontWeight.Medium) },
+                    leadingContent = { Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    modifier = Modifier.clickable { showAddSheet = false; onAddItemClick() }
+                )
+                ListItem(
+                    headlineContent = { Text("Un sous-dossier", fontWeight = FontWeight.Medium) },
+                    leadingContent = { Text("📁", fontSize = 20.sp) },
+                    modifier = Modifier.clickable { showAddSheet = false; showAddSubCollectionDialog = true }
+                )
+            }
+        }
+    }
+
+    // --- PANNEAU DE MODIFICATION (Au clic sur les 3 points) ---
+    if (showEditSheet) {
+        ModalBottomSheet(onDismissRequest = { showEditSheet = false }) {
+            Column(modifier = Modifier.padding(bottom = 32.dp)) {
+                Text("Gérer '$collectionName'", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                ListItem(
+                    headlineContent = { Text("Renommer") },
+                    leadingContent = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    modifier = Modifier.clickable { showEditSheet = false; showRenameDialog = true }
+                )
+                ListItem(
+                    headlineContent = { Text("Déplacer vers un autre dossier") },
+                    leadingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) },
+                    modifier = Modifier.clickable { showEditSheet = false; showMoveDialog = true }
+                )
+                ListItem(
+                    headlineContent = { Text("Supprimer le dossier", color = MaterialTheme.colorScheme.error) },
+                    leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                    modifier = Modifier.clickable { showEditSheet = false; showDeleteCollectionDialog = true }
+                )
+            }
+        }
+    }
+
+    // --- DIALOGUES ---
     if (showMoveDialog) { val validDestinations = viewModel.getValidMoveDestinations(collectionId, allCollections); AlertDialog(onDismissRequest = { showMoveDialog = false }, title = { Text("Déplacer '$collectionName'") }, text = { LazyColumn(modifier = Modifier.fillMaxWidth()) { item { ListItem(headlineContent = { Text("🏠 À la racine (Dashboard)", fontWeight = FontWeight.Bold) }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, null); showMoveDialog = false }); HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }; items(validDestinations) { dest -> ListItem(headlineContent = { Text("📁 ${dest.name}") }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, dest.id); showMoveDialog = false }) } } }, confirmButton = { TextButton(onClick = { showMoveDialog = false }) { Text("Annuler") } }) }
     if (showTagOptionsDialog) AlertDialog(onDismissRequest = { showTagOptionsDialog = false }, title = { Text("Options : $selectedTagToManage") }, text = { Text("Que souhaitez-vous faire ?") }, confirmButton = { Button(onClick = { renameTagInput = selectedTagToManage; showTagOptionsDialog = false; showRenameTagDialog = true }) { Text("Renommer") } }, dismissButton = { Button(onClick = { showTagOptionsDialog = false; showDeleteTagDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Supprimer") } })
     if (showRenameTagDialog) AlertDialog(onDismissRequest = { showRenameTagDialog = false }, title = { Text("Renommer l'étiquette") }, text = { OutlinedTextField(value = renameTagInput, onValueChange = { renameTagInput = it }, singleLine = true) }, confirmButton = { Button(onClick = { if (renameTagInput.isNotBlank()) { viewModel.renameTag(collectionId, selectedTagToManage, renameTagInput.trim()); if (selectedTagFilter == selectedTagToManage) selectedTagFilter = renameTagInput.trim(); showRenameTagDialog = false } }) { Text("Enregistrer") } }, dismissButton = { TextButton(onClick = { showRenameTagDialog = false }) { Text("Annuler") } })
