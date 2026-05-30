@@ -43,6 +43,7 @@ import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
 import com.pokyx.gollections.utils.buildPathBottomUp
 import com.pokyx.gollections.utils.getEmojiForCollection
 import com.pokyx.gollections.utils.getUnitForCollection
+import com.pokyx.gollections.ui.components.CollectionDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,7 +147,13 @@ fun CollectionListScreen(
                     items(subCollections) { subCol ->
                         Card(modifier = Modifier.fillMaxWidth().clickable { onCollectionClick(subCol.id) }, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(text = getEmojiForCollection(subCol.name), fontSize = 28.sp)
+                                // Affichage dynamique de l'icône
+                                if (subCol.cover.startsWith("file") || subCol.cover.startsWith("/") || subCol.cover.startsWith("content") || subCol.cover.startsWith("http")) {
+                                    AsyncImage(model = subCol.cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(40.dp).clip(CircleShape))
+                                } else {
+                                    val displayEmoji = if (subCol.cover.isNotBlank()) subCol.cover else getEmojiForCollection(subCol.name)
+                                    Text(text = displayEmoji, fontSize = 28.sp)
+                                }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column {
                                     Text(text = subCol.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -193,7 +200,17 @@ fun CollectionListScreen(
     if (showDeleteTagDialog) AlertDialog(onDismissRequest = { showDeleteTagDialog = false }, title = { Text(stringResource(R.string.delete_tag_title)) }, text = { Text(stringResource(R.string.delete_tag_warning, selectedTagToManage)) }, confirmButton = { Button(onClick = { val tagToDelete = dbTags.find { it.name == selectedTagToManage }; tagToDelete?.let { viewModel.deleteTag(it) }; if (selectedTagFilter == selectedTagToManage) selectedTagFilter = "Toutes"; showDeleteTagDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.create).replace("Créer", "Confirmer")) } }, dismissButton = { TextButton(onClick = { showDeleteTagDialog = false }) { Text(stringResource(R.string.cancel)) } })
     if (showRenameDialog) AlertDialog(onDismissRequest = { showRenameDialog = false }, title = { Text(stringResource(R.string.rename)) }, text = { OutlinedTextField(value = renameInput, onValueChange = { renameInput = it }, singleLine = true) }, confirmButton = { Button(onClick = { if (renameInput.isNotBlank()) { viewModel.renameCollection(collectionId, renameInput.trim()); showRenameDialog = false } }) { Text(stringResource(R.string.btn_save)) } }, dismissButton = { TextButton(onClick = { showRenameDialog = false }) { Text(stringResource(R.string.cancel)) } })
     if (showDeleteCollectionDialog) AlertDialog(onDismissRequest = { showDeleteCollectionDialog = false }, title = { Text(stringResource(R.string.delete_item_title).replace("l\'objet", "la collection")) }, text = { Text(stringResource(R.string.delete_folder_warning)) }, confirmButton = { Button(onClick = { viewModel.deleteCollection(collectionId); showDeleteCollectionDialog = false; onBackClick() }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.delete_folder).replace(" la collection", "")) } }, dismissButton = { TextButton(onClick = { showDeleteCollectionDialog = false }) { Text(stringResource(R.string.cancel)) } })
-    if (showAddSubCollectionDialog) AlertDialog(onDismissRequest = { showAddSubCollectionDialog = false; newSubCollectionName = "" }, title = { Text(stringResource(R.string.new_subfolder_title)) }, text = { OutlinedTextField(value = newSubCollectionName, onValueChange = { newSubCollectionName = it }, label = { Text(stringResource(R.string.new_subfolder_label)) }, singleLine = true) }, confirmButton = { Button(onClick = { if (newSubCollectionName.isNotBlank()) { viewModel.insertCollection(newSubCollectionName.trim(), parentId = collectionId); showAddSubCollectionDialog = false; newSubCollectionName = "" } }) { Text(stringResource(R.string.create)) } }, dismissButton = { TextButton(onClick = { showAddSubCollectionDialog = false; newSubCollectionName = "" }) { Text(stringResource(R.string.cancel)) } })
+    if (showAddSubCollectionDialog) {
+        CollectionDialog(
+            title = stringResource(R.string.new_subfolder_title),
+            viewModel = viewModel,
+            onDismiss = { showAddSubCollectionDialog = false },
+            onConfirm = { name, cover ->
+                viewModel.insertCollection(name = name, cover = cover, parentId = collectionId)
+                showAddSubCollectionDialog = false
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)

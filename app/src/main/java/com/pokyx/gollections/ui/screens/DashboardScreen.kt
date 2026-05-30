@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.data.Collection as DBCollection
 import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
+import com.pokyx.gollections.ui.components.CollectionDialog
 import com.pokyx.gollections.utils.getEmojiForCollection
 import com.pokyx.gollections.utils.getUnitForCollection
 
@@ -47,7 +50,6 @@ fun DashboardScreen(
     val searchResultsWithTags by viewModel.searchedItemsWithTags.collectAsStateWithLifecycle()
 
     var showAddCollectionDialog by remember { mutableStateOf(false) }
-    var newCollectionName by remember { mutableStateOf("") }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
@@ -94,7 +96,17 @@ fun DashboardScreen(
         }
     }
 
-    if (showAddCollectionDialog) { AlertDialog(onDismissRequest = { showAddCollectionDialog = false; newCollectionName = "" }, title = { Text(stringResource(R.string.new_collection)) }, text = { OutlinedTextField(value = newCollectionName, onValueChange = { newCollectionName = it }, label = { Text(stringResource(R.string.new_subfolder_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) }, confirmButton = { Button(onClick = { if (newCollectionName.isNotBlank()) { viewModel.insertCollection(newCollectionName.trim(), parentId = null); showAddCollectionDialog = false; newCollectionName = "" } }) { Text(stringResource(R.string.create)) } }, dismissButton = { TextButton(onClick = { showAddCollectionDialog = false; newCollectionName = "" }) { Text(stringResource(R.string.cancel)) } }) }
+    if (showAddCollectionDialog) {
+        CollectionDialog(
+            title = stringResource(R.string.new_collection),
+            viewModel = viewModel,
+            onDismiss = { showAddCollectionDialog = false },
+            onConfirm = { name, cover ->
+                viewModel.insertCollection(name = name, cover = cover, parentId = null)
+                showAddCollectionDialog = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -140,13 +152,21 @@ fun CollectionItemCard(collection: DBCollection, allCollections: List<DBCollecti
     val context = LocalContext.current
     val count = viewModel.getRecursiveItemCount(collection.id, allCollections, items)
     val unit = getUnitForCollection(context, collection.name, count)
-    CollectionCard(title = collection.name, count = "$count $unit", emoji = getEmojiForCollection(collection.name), onClick = { onCollectionClick(collection.id) }, modifier = modifier)
+    CollectionCard(title = collection.name, count = "$count $unit", cover = collection.cover, fallbackEmoji = getEmojiForCollection(collection.name), onClick = { onCollectionClick(collection.id) }, modifier = modifier)
 }
 
 @Composable
-fun CollectionCard(title: String, count: String, emoji: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun CollectionCard(title: String, count: String, cover: String, fallbackEmoji: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(modifier = modifier.height(120.dp).clickable { onClick() }, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) { Text(text = emoji, fontSize = 28.sp); Column { Text(text = title, fontWeight = FontWeight.Bold, fontSize = 16.sp); Text(text = count, fontSize = 12.sp, color = Color.Gray) } }
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            if (cover.startsWith("file") || cover.startsWith("/") || cover.startsWith("content") || cover.startsWith("http")) {
+                AsyncImage(model = cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(36.dp).clip(CircleShape))
+            } else {
+                val displayEmoji = if (cover.isNotBlank()) cover else fallbackEmoji
+                Text(text = displayEmoji, fontSize = 28.sp)
+            }
+            Column { Text(text = title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1); Text(text = count, fontSize = 12.sp, color = Color.Gray) }
+        }
     }
 }
 

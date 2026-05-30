@@ -130,10 +130,17 @@ class CollectionViewModel @Inject constructor(
     fun getSubCollections(parentId: Long): Flow<List<Collection>> = collectionDao.getSubCollections(parentId)
     suspend fun getCollectionById(id: Long): Collection? = collectionDao.getCollectionById(id)
 
-    fun insertCollection(name: String, parentId: Long? = null) { viewModelScope.launch { collectionDao.insertCollection(Collection(name = name, parentId = parentId)) } }
+    fun insertCollection(name: String, cover: String = "", parentId: Long? = null) { viewModelScope.launch { collectionDao.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) } }
     fun deleteCollection(collectionId: Long) { viewModelScope.launch { collectionDao.deleteCollectionById(collectionId) } }
     fun renameCollection(id: Long, newName: String) { viewModelScope.launch { collectionDao.renameCollection(id, newName) } }
     fun updateCollectionParent(id: Long, newParentId: Long?) { viewModelScope.launch { collectionDao.updateParentId(id, newParentId) } }
+
+    fun updateCollection(collection: Collection) {
+        viewModelScope.launch {
+            // Note: assurez-vous d'avoir une fonction @Update suspend fun updateCollection(collection: Collection) dans votre CollectionDao
+            collectionDao.updateCollection(collection)
+        }
+    }
 
     fun getRecursiveItemCount(collectionId: Long, allCollections: List<Collection>, allItems: List<CollectionItemWithTags>): Int {
         val descendantIds = mutableListOf(collectionId)

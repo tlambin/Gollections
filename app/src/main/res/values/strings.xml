@@ -91,4 +91,10 @@
     <string name="unit_book_plural">livres</string>
     <string name="unit_object_single">objet</string>
     <string name="unit_object_plural">objets</string>
+
+    <string name="change_cover">Modifier l\'icône</string>
+    <string name="choose_gallery">📁 Choisir une image</string>
+    <string name="choose_emoji">😀 Choisir un émoji</string>
+    <string name="reset_cover">🔄 Réinitialiser par défaut</string>
+    <string name="type_emoji">Tapez un émoji</string>
 </resources>

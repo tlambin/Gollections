@@ -6,20 +6,20 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "collections",
+    tableName = "collections", // FIX : Nom de table explicite en minuscules pour Room/KSP
     foreignKeys = [
         ForeignKey(
             entity = Collection::class,
             parentColumns = ["id"],
             childColumns = ["parentId"],
-            onDelete = ForeignKey.CASCADE,
-            onUpdate = ForeignKey.CASCADE
+            onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [Index(value = ["parentId"])]
 )
 data class Collection(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val parentId: Long? = null // null = collection à la racine du Dashboard
+    val parentId: Long? = null,
+    val cover: String = ""
 )
