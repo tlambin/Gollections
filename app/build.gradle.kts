@@ -78,5 +78,8 @@ dependencies {
     // Dépendance pour le détourage automatique intelligent (Google ML Kit)
     implementation(libs.play.services.mlkit.subject.segmentation)
 
-    implementation("androidx.compose.material:material-icons-core")
+    implementation(libs.androidx.compose.material.icons.core)
+
+    // Google Code Scanner API (Play Services)
+    implementation(libs.play.services.code.scanner)
 }

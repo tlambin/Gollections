@@ -170,4 +170,18 @@ class CollectionViewModel @Inject constructor(
             onResult(resultUri?.toString())
         }
     }
+
+    fun triggerBarcodeScan(context: android.content.Context, onSuccess: (String) -> Unit) {
+        val barcodeScanner = com.pokyx.gollections.utils.BarcodeScanner(context)
+        barcodeScanner.startScan(
+            onScanSuccess = { barcode ->
+                // Le code-barres est récupéré avec succès !
+                onSuccess(barcode)
+            },
+            onScanFailure = { exception ->
+                // Gestion de l'échec ou de l'annulation par l'utilisateur
+                android.util.Log.e("BarcodeScan", "Erreur lors du scan : ${exception.message}")
+            }
+        )
+    }
 }

@@ -93,7 +93,17 @@ fun DashboardScreen(
                         MultiFabItem(
                             text = "Scanner",
                             icon = CameraIcon,
-                            onClick = { isFabExpanded = false; Toast.makeText(context, "Scan à venir", Toast.LENGTH_SHORT).show() }
+                            onClick = {
+                                isFabExpanded = false
+                                // Appel du scanner natif
+                                viewModel.triggerBarcodeScan(context) { barcode ->
+                                    // RECEPTION DU CODE !
+                                    Toast.makeText(context, "Code détecté : $barcode", Toast.LENGTH_LONG).show()
+
+                                    // TODO : C'est ici qu'on lancera la recherche d'infos (API)
+                                    // ou qu'on ouvrira l'écran de création pré-rempli.
+                                }
+                            }
                         )
                         MultiFabItem(
                             text = "Créer une collection",
