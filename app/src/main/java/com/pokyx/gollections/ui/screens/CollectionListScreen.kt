@@ -1,15 +1,25 @@
 package com.pokyx.gollections.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,10 +39,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -58,7 +72,7 @@ import java.time.format.DateTimeParseException
 
 enum class SortOption { NAME_ASC, NAME_DESC, PRICE_ASC, PRICE_DESC, DATE_DESC, DATE_ASC }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun CollectionListScreen(
     collectionId: Long,
@@ -86,7 +100,9 @@ fun CollectionListScreen(
     var sortOption by remember { mutableStateOf(SortOption.NAME_ASC) }
     var showSortMenu by remember { mutableStateOf(false) }
 
-    var showAddSheet by remember { mutableStateOf(false) }
+    // État pour le FAB multiple
+    var isFabExpanded by remember { mutableStateOf(false) }
+
     var showEditSheet by remember { mutableStateOf(false) }
 
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -153,6 +169,26 @@ fun CollectionListScreen(
         items
     }
 
+    // --- GESTION DU SCROLL POUR L'APPARITION/DISPARITION ---
+    val listState = rememberLazyListState()
+    var isHeaderVisible by remember { mutableStateOf(true) }
+
+    val isAtTop by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 } }
+    val showHeader = isHeaderVisible || isAtTop
+
+    val nestedScrollConnectionForHeader = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (isFabExpanded) isFabExpanded = false
+
+                if (available.y < -15f) isHeaderVisible = false
+                else if (available.y > 15f) isHeaderVisible = true
+
+                return Offset.Zero
+            }
+        }
+    }
+
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
@@ -182,162 +218,221 @@ fun CollectionListScreen(
                         }
                     }
                 },
-                navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) } },
-                actions = { IconButton(onClick = { showEditSheet = true }) { Icon(Icons.Default.MoreVert, contentDescription = null) } },
+                // --- BOUTONS CIRCULAIRES ICI ---
+                navigationIcon = {
+                    IconButton(
+                        onClick = onBackClick,
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Retour",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { showEditSheet = true },
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Menu",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                },
+                // -------------------------------
                 scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = MaterialTheme.colorScheme.background, scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant)
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                )
             )
         },
-        floatingActionButton = { FloatingActionButton(onClick = { showAddSheet = true }, containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_title), modifier = Modifier.size(28.dp)) } }
-    ) { paddingValues ->
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-
-            // 1. Barre de recherche (Avec padding normal)
-            TextField(value = searchQuery, onValueChange = { searchQuery = it }, placeholder = { Text(stringResource(R.string.search_placeholder)) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), shape = CircleShape, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }, trailingIcon = { if (searchQuery.isNotEmpty()) { IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Clear, contentDescription = null) } } }, colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant), singleLine = true)
-
-            // 2. Ligne des Bulles (Sans padding horizontal pour coller aux bords)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, // Distribue l'espace pour coller le premier et dernier aux bords
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 1. Bulle Étiquettes (Demi-bulle gauche, bord gauche plat)
-                Box(modifier = Modifier
-                    .width(52.dp)
-                    .height(40.dp)
-                    .background(
-                        color = if (showTagsRow) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(topEnd = 50.dp, bottomEnd = 50.dp) // Arrondi à droite, plat à gauche
-                    )
-                    .clickable {
-                        if (dbTags.isNotEmpty()) {
-                            showTagsRow = !showTagsRow
-                        } else {
-                            Toast.makeText(context, "Aucune étiquette dans ce dossier", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    contentAlignment = Alignment.Center
+        floatingActionButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = fadeIn() + slideInVertically(initialOffsetY = { 50 }),
+                    exit = fadeOut() + slideOutVertically(targetOffsetY = { 50 })
                 ) {
-                    Icon(LabelIcon, contentDescription = "Tags", tint = if (showTagsRow) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                }
-
-                // 2. Bulle Favoris (Ronde fixe)
-                Box(modifier = Modifier
-                    .size(40.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                    .clickable { Toast.makeText(context, "Favoris bientôt disponibles", Toast.LENGTH_SHORT).show() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.FavoriteBorder, contentDescription = "Favoris", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                }
-
-                // 3. Bulle Nombre Total (Pilule taille fixe)
-                Box(modifier = Modifier
-                    .width(85.dp)
-                    .height(40.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = totalCount.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-
-                // 4. Bulle Valeur Totale (Pilule taille fixe identique au nombre)
-                Box(modifier = Modifier
-                    .width(85.dp)
-                    .height(40.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = formattedValue, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-
-                // 5. Bulle Corbeille (Ronde fixe)
-                Box(modifier = Modifier
-                    .size(40.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                    .clickable { Toast.makeText(context, "Corbeille bientôt disponible", Toast.LENGTH_SHORT).show() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Delete, contentDescription = "Corbeille", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                }
-
-                // 6. Bulle Tri (Demi-bulle droite, bord droit plat)
-                Box {
-                    Box(modifier = Modifier
-                        .width(52.dp)
-                        .height(40.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(topStart = 50.dp, bottomStart = 50.dp) // Arrondi à gauche, plat à droite
-                        )
-                        .clickable { showSortMenu = true },
-                        contentAlignment = Alignment.Center
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(bottom = 16.dp)
                     ) {
-                        Icon(FilterListIcon, contentDescription = "Trier", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                    }
-                    DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.sort_name_asc)) }, onClick = { sortOption = SortOption.NAME_ASC; showSortMenu = false })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.sort_name_desc)) }, onClick = { sortOption = SortOption.NAME_DESC; showSortMenu = false })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.sort_price_desc)) }, onClick = { sortOption = SortOption.PRICE_DESC; showSortMenu = false })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.sort_price_asc)) }, onClick = { sortOption = SortOption.PRICE_ASC; showSortMenu = false })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.sort_date_desc)) }, onClick = { sortOption = SortOption.DATE_DESC; showSortMenu = false })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.sort_date_asc)) }, onClick = { sortOption = SortOption.DATE_ASC; showSortMenu = false })
+                        MultiFabItem(
+                            text = "Scanner",
+                            icon = CameraIcon,
+                            onClick = { isFabExpanded = false; Toast.makeText(context, "Scan à venir", Toast.LENGTH_SHORT).show() }
+                        )
+                        MultiFabItem(
+                            text = "Créer une collection",
+                            icon = FolderIcon,
+                            onClick = { isFabExpanded = false; showAddSubCollectionDialog = true }
+                        )
+                        MultiFabItem(
+                            text = "Ajouter un objet",
+                            icon = Icons.Default.Add,
+                            onClick = { isFabExpanded = false; onAddItemClick() }
+                        )
                     }
                 }
-            }
 
-            // Ligne de filtres de tags
-            if (showTagsRow && dbTags.isNotEmpty()) {
-                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    tagsList.forEach { tag -> CustomTagChip(text = tag, isSelected = selectedTagFilter == tag, onClick = { selectedTagFilter = tag }, onLongClick = if (tag != "Toutes") { { selectedTagToManage = tag; showTagOptionsDialog = true } } else null) }
+                FloatingActionButton(
+                    onClick = { isFabExpanded = !isFabExpanded },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ) {
+                    val rotation by animateFloatAsState(
+                        targetValue = if (isFabExpanded) 45f else 0f,
+                        label = "fab_rotation"
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Menu Actions",
+                        modifier = Modifier
+                            .size(28.dp)
+                            .rotate(rotation)
+                    )
                 }
             }
+        }
+    ) { paddingValues ->
 
-            // 3. Contenu principal (Sous-collections et Objets)
-            LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
 
-                // Sous-collections en grille de 3
-                if (subCollections.isNotEmpty()) {
-                    item { Text(stringResource(R.string.title_folders), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)) }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(nestedScrollConnectionForHeader)
+            ) {
 
-                    val chunkedSubCols = subCollections.chunked(3)
-                    items(chunkedSubCols) { rowItems ->
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            for (subCol in rowItems) {
-                                val subCount = viewModel.getRecursiveItemCount(subCol.id, allCollections, allItemsWithTags)
-                                SubCollectionSmallCard(subCol, subCount, Modifier.weight(1f), onCollectionClick)
+                AnimatedVisibility(
+                    visible = showHeader,
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.background)
+                            .padding(bottom = 8.dp)
+                    ) {
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text(stringResource(R.string.search_placeholder)) },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                            shape = CircleShape,
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingIcon = { if (searchQuery.isNotEmpty()) { IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Clear, contentDescription = null) } } },
+                            colors = TextFieldDefaults.colors(
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent,
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            singleLine = true
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.width(52.dp).height(40.dp).background(if (showTagsRow) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(topEnd = 50.dp, bottomEnd = 50.dp)).clickable { if (dbTags.isNotEmpty()) { showTagsRow = !showTagsRow } else { Toast.makeText(context, "Aucune étiquette dans ce dossier", Toast.LENGTH_SHORT).show() } }, contentAlignment = Alignment.Center) {
+                                Icon(LabelIcon, contentDescription = "Tags", tint = if (showTagsRow) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                             }
-                            // Comble l'espace vide si la rangée a moins de 3 éléments
-                            repeat(3 - rowItems.size) {
-                                Spacer(modifier = Modifier.weight(1f))
+                            Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape).clickable { Toast.makeText(context, "Favoris bientôt disponibles", Toast.LENGTH_SHORT).show() }, contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.FavoriteBorder, contentDescription = "Favoris", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                            }
+                            Box(modifier = Modifier.width(85.dp).height(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape), contentAlignment = Alignment.Center) {
+                                Text(text = totalCount.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Box(modifier = Modifier.width(85.dp).height(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape), contentAlignment = Alignment.Center) {
+                                Text(text = formattedValue, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape).clickable { Toast.makeText(context, "Corbeille bientôt disponible", Toast.LENGTH_SHORT).show() }, contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Delete, contentDescription = "Corbeille", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                            }
+                            Box {
+                                Box(modifier = Modifier.width(52.dp).height(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(topStart = 50.dp, bottomStart = 50.dp)).clickable { showSortMenu = true }, contentAlignment = Alignment.Center) {
+                                    Icon(FilterListIcon, contentDescription = "Trier", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                                }
+                                DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.sort_name_asc)) }, onClick = { sortOption = SortOption.NAME_ASC; showSortMenu = false })
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.sort_name_desc)) }, onClick = { sortOption = SortOption.NAME_DESC; showSortMenu = false })
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.sort_price_desc)) }, onClick = { sortOption = SortOption.PRICE_DESC; showSortMenu = false })
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.sort_price_asc)) }, onClick = { sortOption = SortOption.PRICE_ASC; showSortMenu = false })
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.sort_date_desc)) }, onClick = { sortOption = SortOption.DATE_DESC; showSortMenu = false })
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.sort_date_asc)) }, onClick = { sortOption = SortOption.DATE_ASC; showSortMenu = false })
+                                }
+                            }
+                        }
+
+                        if (showTagsRow && dbTags.isNotEmpty()) {
+                            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                tagsList.forEach { tag -> CustomTagChip(text = tag, isSelected = selectedTagFilter == tag, onClick = { selectedTagFilter = tag }, onLongClick = if (tag != "Toutes") { { selectedTagToManage = tag; showTagOptionsDialog = true } } else null) }
                             }
                         }
                     }
-                    item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
                 }
 
-                if (filteredAndSortedItems.isNotEmpty() || subCollections.isNotEmpty()) {
-                    item { Text(stringResource(R.string.title_items), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp)) }
-                }
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if (subCollections.isNotEmpty()) {
+                        item { Text(stringResource(R.string.title_folders), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) }
 
-                if (filteredAndSortedItems.isEmpty() && subCollections.isEmpty()) {
-                    item { Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.empty_folder), color = MaterialTheme.colorScheme.outline) } }
-                } else {
-                    items(filteredAndSortedItems) { itemWithTags ->
-                        val item = itemWithTags.item
-                        Card(modifier = Modifier.fillMaxWidth().clickable { onItemClick(item.id) }, shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
-                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                if (item.imageUrl.isNotBlank()) AsyncImage(model = item.imageUrl, contentDescription = null, modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
-                                else Box(modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) { val displayEmoji = if (collectionCover.isNotBlank() && !collectionCover.startsWith("file")) collectionCover else getEmojiForCollection(collectionName); Text(text = displayEmoji, fontSize = 24.sp) }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = item.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        val tagsStr = itemWithTags.tags.joinToString(" • ") { it.name }
-                                        if (tagsStr.isNotEmpty()) { Text(text = tagsStr, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                        if (item.status != "Non commencé") Text(text = if (tagsStr.isNotEmpty()) " | ${item.status}" else item.status, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+                        val chunkedSubCols = subCollections.chunked(3)
+                        items(chunkedSubCols) { rowItems ->
+                            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                for (subCol in rowItems) {
+                                    val subCount = viewModel.getRecursiveItemCount(subCol.id, allCollections, allItemsWithTags)
+                                    SubCollectionSmallCard(subCol, subCount, Modifier.weight(1f), onCollectionClick)
+                                }
+                                repeat(3 - rowItems.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+                    }
+
+                    if (filteredAndSortedItems.isNotEmpty() || subCollections.isNotEmpty()) {
+                        item { Text(stringResource(R.string.title_items), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 24.dp)) }
+                    }
+
+                    if (filteredAndSortedItems.isEmpty() && subCollections.isEmpty()) {
+                        item { Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.empty_folder), color = MaterialTheme.colorScheme.outline) } }
+                    } else {
+                        items(filteredAndSortedItems) { itemWithTags ->
+                            val item = itemWithTags.item
+                            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable { onItemClick(item.id) }, shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
+                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    if (item.imageUrl.isNotBlank()) AsyncImage(model = item.imageUrl, contentDescription = null, modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
+                                    else Box(modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) { val displayEmoji = if (collectionCover.isNotBlank() && !collectionCover.startsWith("file")) collectionCover else getEmojiForCollection(collectionName); Text(text = displayEmoji, fontSize = 24.sp) }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = item.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            val tagsStr = itemWithTags.tags.joinToString(" • ") { it.name }
+                                            if (tagsStr.isNotEmpty()) { Text(text = tagsStr, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                            if (item.status != "Non commencé") Text(text = if (tagsStr.isNotEmpty()) " | ${item.status}" else item.status, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+                                        }
                                     }
                                 }
                             }
@@ -345,30 +440,61 @@ fun CollectionListScreen(
                     }
                 }
             }
+
+            if (isFabExpanded) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { isFabExpanded = false }
+                )
+            }
         }
     }
 
-    if (showAddSheet) { ModalBottomSheet(onDismissRequest = { showAddSheet = false }) { Column(modifier = Modifier.padding(bottom = 32.dp)) { Text(stringResource(R.string.add_title), modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary); ListItem(headlineContent = { Text(stringResource(R.string.add_new_item), fontWeight = FontWeight.Medium) }, leadingContent = { Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }, modifier = Modifier.clickable { showAddSheet = false; onAddItemClick() }); ListItem(headlineContent = { Text(stringResource(R.string.add_new_subfolder), fontWeight = FontWeight.Medium) }, leadingContent = { Text("📁", fontSize = 20.sp) }, modifier = Modifier.clickable { showAddSheet = false; showAddSubCollectionDialog = true }) } } }
     if (showEditSheet) { ModalBottomSheet(onDismissRequest = { showEditSheet = false }) { Column(modifier = Modifier.padding(bottom = 32.dp)) { Text(stringResource(R.string.manage_folder, collectionName), modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary); ListItem(headlineContent = { Text(stringResource(R.string.rename)) }, leadingContent = { Icon(Icons.Default.Edit, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showRenameDialog = true }); ListItem(headlineContent = { Text(stringResource(R.string.move_folder)) }, leadingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showMoveDialog = true }); ListItem(headlineContent = { Text(stringResource(R.string.delete_folder), color = MaterialTheme.colorScheme.error) }, leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }, modifier = Modifier.clickable { showEditSheet = false; showDeleteCollectionDialog = true }) } } }
-
-    if (showAddSubCollectionDialog) {
-        CollectionDialog(
-            title = stringResource(R.string.new_subfolder_title),
-            viewModel = viewModel,
-            onDismiss = { showAddSubCollectionDialog = false },
-            onConfirm = { name, cover ->
-                viewModel.insertCollection(name = name, cover = cover, parentId = collectionId)
-                showAddSubCollectionDialog = false
-            }
-        )
-    }
-
+    if (showAddSubCollectionDialog) { CollectionDialog(title = stringResource(R.string.new_subfolder_title), viewModel = viewModel, onDismiss = { showAddSubCollectionDialog = false }, onConfirm = { name, cover -> viewModel.insertCollection(name = name, cover = cover, parentId = collectionId); showAddSubCollectionDialog = false }) }
     if (showMoveDialog) { val validDestinations = viewModel.getValidMoveDestinations(collectionId, allCollections); AlertDialog(onDismissRequest = { showMoveDialog = false }, title = { Text(stringResource(R.string.move_folder)) }, text = { LazyColumn(modifier = Modifier.fillMaxWidth()) { item { ListItem(headlineContent = { Text(stringResource(R.string.move_to_root), fontWeight = FontWeight.Bold) }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, null); showMoveDialog = false }); HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }; items(validDestinations) { dest -> ListItem(headlineContent = { Text("📁 ${dest.name}") }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, dest.id); showMoveDialog = false }) } } }, confirmButton = { TextButton(onClick = { showMoveDialog = false }) { Text(stringResource(R.string.cancel)) } }) }
     if (showTagOptionsDialog) AlertDialog(onDismissRequest = { showTagOptionsDialog = false }, title = { Text(stringResource(R.string.tag_options_title, selectedTagToManage)) }, text = { Text(stringResource(R.string.tag_options_subtitle)) }, confirmButton = { Button(onClick = { renameTagInput = selectedTagToManage; showTagOptionsDialog = false; showRenameTagDialog = true }) { Text(stringResource(R.string.rename)) } }, dismissButton = { Button(onClick = { showTagOptionsDialog = false; showDeleteTagDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.delete_folder).replace("le dossier", "")) } })
     if (showRenameTagDialog) AlertDialog(onDismissRequest = { showRenameTagDialog = false }, title = { Text(stringResource(R.string.rename)) }, text = { OutlinedTextField(value = renameTagInput, onValueChange = { renameTagInput = it }, singleLine = true) }, confirmButton = { Button(onClick = { if (renameTagInput.isNotBlank()) { viewModel.renameTag(collectionId, selectedTagToManage, renameTagInput.trim()); if (selectedTagFilter == selectedTagToManage) selectedTagFilter = renameTagInput.trim(); showRenameTagDialog = false } }) { Text(stringResource(R.string.btn_save)) } }, dismissButton = { TextButton(onClick = { showRenameTagDialog = false }) { Text(stringResource(R.string.cancel)) } })
     if (showDeleteTagDialog) AlertDialog(onDismissRequest = { showDeleteTagDialog = false }, title = { Text(stringResource(R.string.delete_tag_title)) }, text = { Text(stringResource(R.string.delete_tag_warning, selectedTagToManage)) }, confirmButton = { Button(onClick = { val tagToDelete = dbTags.find { it.name == selectedTagToManage }; tagToDelete?.let { viewModel.deleteTag(it) }; if (selectedTagFilter == selectedTagToManage) selectedTagFilter = "Toutes"; showDeleteTagDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.create).replace("Créer", "Confirmer")) } }, dismissButton = { TextButton(onClick = { showDeleteTagDialog = false }) { Text(stringResource(R.string.cancel)) } })
     if (showRenameDialog) AlertDialog(onDismissRequest = { showRenameDialog = false }, title = { Text(stringResource(R.string.rename)) }, text = { OutlinedTextField(value = renameInput, onValueChange = { renameInput = it }, singleLine = true) }, confirmButton = { Button(onClick = { if (renameInput.isNotBlank()) { viewModel.renameCollection(collectionId, renameInput.trim()); showRenameDialog = false } }) { Text(stringResource(R.string.btn_save)) } }, dismissButton = { TextButton(onClick = { showRenameDialog = false }) { Text(stringResource(R.string.cancel)) } })
     if (showDeleteCollectionDialog) AlertDialog(onDismissRequest = { showDeleteCollectionDialog = false }, title = { Text(stringResource(R.string.delete_item_title).replace("l\'objet", "la collection")) }, text = { Text(stringResource(R.string.delete_folder_warning)) }, confirmButton = { Button(onClick = { viewModel.deleteCollection(collectionId); showDeleteCollectionDialog = false; onBackClick() }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.delete_folder).replace(" la collection", "")) } }, dismissButton = { TextButton(onClick = { showDeleteCollectionDialog = false }) { Text(stringResource(R.string.cancel)) } })
+}
+
+@Composable
+fun MultiFabItem(text: String, icon: ImageVector, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.End,
+        modifier = Modifier.padding(end = 8.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shadowElevation = 2.dp,
+            modifier = Modifier
+                .padding(end = 12.dp)
+                .clickable { onClick() }
+        ) {
+            Text(
+                text = text,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
+        SmallFloatingActionButton(
+            onClick = onClick,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ) {
+            Icon(icon, contentDescription = text, modifier = Modifier.size(20.dp))
+        }
+    }
 }
 
 @Composable
@@ -392,20 +518,8 @@ fun SubCollectionSmallCard(collection: DBCollection, count: Int, modifier: Modif
                 Text(text = displayEmoji, fontSize = 24.sp)
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = collection.name,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "$count obj",
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.outline,
-                maxLines = 1
-            )
+            Text(text = collection.name, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+            Text(text = "$count obj", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline, maxLines = 1)
         }
     }
 }
@@ -419,49 +533,7 @@ fun CustomTagChip(text: String, isSelected: Boolean, onClick: () -> Unit, onLong
     Box(modifier = Modifier.background(containerColor, RoundedCornerShape(8.dp)).then(borderModifier).combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) { Text(text = text, color = contentColor, fontSize = 14.sp, fontWeight = FontWeight.Medium) }
 }
 
-val LabelIcon: ImageVector
-    get() = ImageVector.Builder(
-        name = "Label", defaultWidth = 24.dp, defaultHeight = 24.dp,
-        viewportWidth = 24f, viewportHeight = 24f
-    ).apply {
-        path(fill = SolidColor(Color.Black)) {
-            moveTo(17.63f, 5.84f)
-            curveTo(17.27f, 5.33f, 16.67f, 5.0f, 16.0f, 5.0f)
-            lineTo(5.01f, 5.0f)
-            curveTo(3.9f, 5.0f, 3.0f, 5.9f, 3.0f, 7.0f)
-            lineTo(3.0f, 17.0f)
-            curveTo(3.0f, 18.1f, 3.9f, 19.0f, 5.01f, 19.0f)
-            lineTo(16.0f, 19.0f)
-            curveTo(16.67f, 19.0f, 17.27f, 18.66f, 17.63f, 18.15f)
-            lineTo(22.0f, 12.0f)
-            lineTo(17.63f, 5.84f)
-            close()
-        }
-    }.build()
-
-val FilterListIcon: ImageVector
-    get() = ImageVector.Builder(
-        name = "FilterList", defaultWidth = 24.dp, defaultHeight = 24.dp,
-        viewportWidth = 24f, viewportHeight = 24f
-    ).apply {
-        path(fill = SolidColor(Color.Black)) {
-            moveTo(10.0f, 18.0f)
-            horizontalLineToRelative(4.0f)
-            verticalLineToRelative(-2.0f)
-            horizontalLineToRelative(-4.0f)
-            verticalLineToRelative(2.0f)
-            close()
-            moveTo(3.0f, 6.0f)
-            verticalLineToRelative(2.0f)
-            horizontalLineToRelative(18.0f)
-            verticalLineToRelative(-2.0f)
-            horizontalLineTo(3.0f)
-            close()
-            moveTo(6.0f, 13.0f)
-            horizontalLineToRelative(12.0f)
-            verticalLineToRelative(-2.0f)
-            horizontalLineTo(6.0f)
-            verticalLineToRelative(2.0f)
-            close()
-        }
-    }.build()
+val LabelIcon: ImageVector get() = ImageVector.Builder(name = "Label", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f).apply { path(fill = SolidColor(Color.Black)) { moveTo(17.63f, 5.84f); curveTo(17.27f, 5.33f, 16.67f, 5.0f, 16.0f, 5.0f); lineTo(5.01f, 5.0f); curveTo(3.9f, 5.0f, 3.0f, 5.9f, 3.0f, 7.0f); lineTo(3.0f, 17.0f); curveTo(3.0f, 18.1f, 3.9f, 19.0f, 5.01f, 19.0f); lineTo(16.0f, 19.0f); curveTo(16.67f, 19.0f, 17.27f, 18.66f, 17.63f, 18.15f); lineTo(22.0f, 12.0f); lineTo(17.63f, 5.84f); close() } }.build()
+val FilterListIcon: ImageVector get() = ImageVector.Builder(name = "FilterList", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f).apply { path(fill = SolidColor(Color.Black)) { moveTo(10.0f, 18.0f); horizontalLineToRelative(4.0f); verticalLineToRelative(-2.0f); horizontalLineToRelative(-4.0f); verticalLineToRelative(2.0f); close(); moveTo(3.0f, 6.0f); verticalLineToRelative(2.0f); horizontalLineToRelative(18.0f); verticalLineToRelative(-2.0f); horizontalLineTo(3.0f); close(); moveTo(6.0f, 13.0f); horizontalLineToRelative(12.0f); verticalLineToRelative(-2.0f); horizontalLineTo(6.0f); verticalLineToRelative(2.0f); close() } }.build()
+val CameraIcon: ImageVector get() = ImageVector.Builder(name = "Camera", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f).apply { path(fill = SolidColor(Color.Black)) { moveTo(9.0f, 2.0f); lineTo(7.17f, 4.0f); horizontalLineTo(4.0f); curveTo(2.9f, 4.0f, 2.0f, 4.9f, 2.0f, 6.0f); verticalLineToRelative(12.0f); curveTo(2.0f, 19.1f, 2.9f, 20.0f, 4.0f, 20.0f); horizontalLineToRelative(16.0f); curveTo(21.1f, 20.0f, 22.0f, 19.1f, 22.0f, 18.0f); verticalLineTo(6.0f); curveTo(22.0f, 4.9f, 21.1f, 4.0f, 20.0f, 4.0f); horizontalLineToRelative(-3.17f); lineTo(15.0f, 2.0f); horizontalLineTo(9.0f); close(); moveTo(12.0f, 17.0f); curveTo(9.24f, 17.0f, 7.0f, 14.76f, 7.0f, 12.0f); curveTo(7.0f, 9.24f, 9.24f, 7.0f, 12.0f, 7.0f); curveTo(14.76f, 7.0f, 17.0f, 9.24f, 17.0f, 12.0f); curveTo(17.0f, 14.76f, 14.76f, 17.0f, 12.0f, 17.0f); close(); moveTo(12.0f, 9.0f); curveTo(10.34f, 9.0f, 9.0f, 10.34f, 9.0f, 12.0f); curveTo(9.0f, 13.66f, 10.34f, 15.0f, 12.0f, 15.0f); curveTo(13.66f, 15.0f, 15.0f, 13.66f, 15.0f, 12.0f); curveTo(15.0f, 10.34f, 13.66f, 9.0f, 12.0f, 9.0f); close() } }.build()
+val FolderIcon: ImageVector get() = ImageVector.Builder(name = "Folder", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f).apply { path(fill = SolidColor(Color.Black)) { moveTo(10.0f, 4.0f); horizontalLineTo(4.0f); curveTo(2.9f, 4.0f, 2.01f, 4.9f, 2.01f, 6.0f); lineTo(2.0f, 18.0f); curveTo(2.0f, 19.1f, 2.9f, 20.0f, 4.0f, 20.0f); horizontalLineToRelative(16.0f); curveTo(21.1f, 20.0f, 22.0f, 19.1f, 22.0f, 18.0f); verticalLineTo(8.0f); curveTo(22.0f, 6.9f, 21.1f, 6.0f, 20.0f, 6.0f); horizontalLineToRelative(-8.0f); lineToRelative(-2.0f, -2.0f); close() } }.build()

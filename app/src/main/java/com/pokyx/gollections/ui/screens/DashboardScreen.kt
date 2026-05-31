@@ -1,7 +1,15 @@
 package com.pokyx.gollections.ui.screens
 
+import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -43,6 +52,8 @@ fun DashboardScreen(
     onAddItemClick: () -> Unit,
     viewModel: CollectionViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+
     val rootCollections by viewModel.rootCollections.collectAsStateWithLifecycle()
     val allCollections by viewModel.collections.collectAsStateWithLifecycle()
     val allItemsWithTags by viewModel.allItemsWithTags.collectAsStateWithLifecycle()
@@ -50,6 +61,10 @@ fun DashboardScreen(
     val searchResultsWithTags by viewModel.searchedItemsWithTags.collectAsStateWithLifecycle()
 
     var showAddCollectionDialog by remember { mutableStateOf(false) }
+
+    // État pour le FAB multiple
+    var isFabExpanded by remember { mutableStateOf(false) }
+
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
@@ -61,37 +76,105 @@ fun DashboardScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         },
-        floatingActionButton = { FloatingActionButton(onClick = onAddItemClick, containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_title), modifier = Modifier.size(28.dp)) } }
-    ) { paddingValues ->
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(paddingValues), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            item {
-                TextField(
-                    value = searchQuery, onValueChange = { viewModel.updateSearchQuery(it) }, placeholder = { Text(stringResource(R.string.search_placeholder)) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), shape = CircleShape, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }, trailingIcon = { if (searchQuery.isNotEmpty()) { IconButton(onClick = { viewModel.updateSearchQuery("") }) { Icon(Icons.Default.Clear, contentDescription = null) } } },
-                    colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant), singleLine = true
-                )
-            }
-
-            if (searchQuery.isEmpty()) {
-                item { StatsSlider(totalItems = allItemsWithTags.size, totalCollections = rootCollections.size, loanedItems = allItemsWithTags.count { it.item.isLoaned }) }
-                item { Text(text = stringResource(R.string.my_collections), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
-                item { CollectionsGrid(collections = rootCollections, allCollections = allCollections, items = allItemsWithTags, onCollectionClick = onCollectionClick, onAddCollectionClick = { showAddCollectionDialog = true }, viewModel = viewModel) }
-            } else {
-                item { Text(text = "${stringResource(R.string.title_items)} (${searchResultsWithTags.size})", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
-                if (searchResultsWithTags.isEmpty()) { item { Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_object_found), color = Color.Gray) } } }
-                else {
-                    items(searchResultsWithTags) { itemWithTags ->
-                        val item = itemWithTags.item
-                        val parentCol = allCollections.find { it.id == item.collectionId }
-                        val colName = parentCol?.name ?: ""
-                        val tagsStr = itemWithTags.tags.joinToString(" • ") { it.name }
-                        ListItem(
-                            headlineContent = { Text(item.title, fontWeight = FontWeight.SemiBold) },
-                            supportingContent = { if (tagsStr.isNotEmpty()) Text("$colName • $tagsStr") else Text(colName) },
-                            leadingContent = { Text(getEmojiForCollection(colName), fontSize = 24.sp) },
-                            modifier = Modifier.padding(horizontal = 24.dp).clickable { onCollectionClick(item.collectionId) }
+        floatingActionButton = {
+            // NOUVEAU MENU FLOTTANT (SPEED DIAL)
+            Column(horizontalAlignment = Alignment.End) {
+                // Sous-menus animés
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = fadeIn() + slideInVertically(initialOffsetY = { 50 }),
+                    exit = fadeOut() + slideOutVertically(targetOffsetY = { 50 })
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    ) {
+                        MultiFabItem(
+                            text = "Scanner",
+                            icon = CameraIcon,
+                            onClick = { isFabExpanded = false; Toast.makeText(context, "Scan à venir", Toast.LENGTH_SHORT).show() }
+                        )
+                        MultiFabItem(
+                            text = "Créer une collection",
+                            icon = FolderIcon,
+                            onClick = { isFabExpanded = false; showAddCollectionDialog = true }
+                        )
+                        MultiFabItem(
+                            text = "Ajouter un objet",
+                            icon = Icons.Default.Add,
+                            onClick = { isFabExpanded = false; onAddItemClick() }
                         )
                     }
                 }
+
+                // Bouton Principal Rotatif
+                FloatingActionButton(
+                    onClick = { isFabExpanded = !isFabExpanded },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ) {
+                    val rotation by animateFloatAsState(
+                        targetValue = if (isFabExpanded) 45f else 0f,
+                        label = "fab_rotation"
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Menu Actions",
+                        modifier = Modifier
+                            .size(28.dp)
+                            .rotate(rotation)
+                    )
+                }
+            }
+        }
+    ) { paddingValues ->
+        // On englobe le contenu dans une Box pour pouvoir placer l'overlay noir par-dessus
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+
+            LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                item {
+                    TextField(
+                        value = searchQuery, onValueChange = { viewModel.updateSearchQuery(it) }, placeholder = { Text(stringResource(R.string.search_placeholder)) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), shape = CircleShape, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }, trailingIcon = { if (searchQuery.isNotEmpty()) { IconButton(onClick = { viewModel.updateSearchQuery("") }) { Icon(Icons.Default.Clear, contentDescription = null) } } },
+                        colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant), singleLine = true
+                    )
+                }
+
+                if (searchQuery.isEmpty()) {
+                    item { StatsSlider(totalItems = allItemsWithTags.size, totalCollections = rootCollections.size, loanedItems = allItemsWithTags.count { it.item.isLoaned }) }
+                    item { Text(text = stringResource(R.string.my_collections), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
+                    item { CollectionsGrid(collections = rootCollections, allCollections = allCollections, items = allItemsWithTags, onCollectionClick = onCollectionClick, onAddCollectionClick = { showAddCollectionDialog = true }, viewModel = viewModel) }
+                } else {
+                    item { Text(text = "${stringResource(R.string.title_items)} (${searchResultsWithTags.size})", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
+                    if (searchResultsWithTags.isEmpty()) { item { Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_object_found), color = Color.Gray) } } }
+                    else {
+                        items(searchResultsWithTags) { itemWithTags ->
+                            val item = itemWithTags.item
+                            val parentCol = allCollections.find { it.id == item.collectionId }
+                            val colName = parentCol?.name ?: ""
+                            val tagsStr = itemWithTags.tags.joinToString(" • ") { it.name }
+                            ListItem(
+                                headlineContent = { Text(item.title, fontWeight = FontWeight.SemiBold) },
+                                supportingContent = { if (tagsStr.isNotEmpty()) Text("$colName • $tagsStr") else Text(colName) },
+                                leadingContent = { Text(getEmojiForCollection(colName), fontSize = 24.sp) },
+                                modifier = Modifier.padding(horizontal = 24.dp).clickable { onCollectionClick(item.collectionId) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Filtre sombre recouvrant l'écran quand le FAB est ouvert
+            if (isFabExpanded) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f)) // Voile noir semi-transparent
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { isFabExpanded = false } // Ferme le menu si on clique dans le vide
+                )
             }
         }
     }
