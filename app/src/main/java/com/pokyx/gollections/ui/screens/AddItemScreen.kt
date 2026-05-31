@@ -48,6 +48,8 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun AddItemScreen(
     preSelectedCollectionId: Long? = null,
+    scannedTitle: String? = null,     // <-- AJOUT
+    scannedImageUrl: String? = null,
     onBackClick: () -> Unit,
     onSaveClick: (CollectionItem, List<Tag>) -> Unit,
     viewModel: ItemViewModel = hiltViewModel()
@@ -56,9 +58,9 @@ fun AddItemScreen(
     val collectionsList by viewModel.collections.collectAsStateWithLifecycle()
     val state by viewModel.formState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(preSelectedCollectionId, collectionsList) {
+    LaunchedEffect(preSelectedCollectionId, collectionsList, scannedTitle, scannedImageUrl) {
         if (collectionsList.isNotEmpty() && state.title.isEmpty() && state.imageUrl.isEmpty()) {
-            viewModel.resetFormState(preSelectedCollectionId, collectionsList)
+            viewModel.resetFormState(preSelectedCollectionId, collectionsList, scannedTitle, scannedImageUrl)
         }
     }
 

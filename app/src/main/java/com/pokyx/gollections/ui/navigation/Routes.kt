@@ -12,7 +12,9 @@ data class CollectionDetailRoute(val collectionId: Long)
 data class ItemDetailRoute(val itemId: Int) // <-- RESTAURÉ ICI
 
 @Serializable
-data class AddItemRoute(val preSelectedCollectionId: Long? = null)
+data class AddItemRoute(val preSelectedCollectionId: Long? = null,
+                        val scannedTitle: String? = null,
+                        val scannedImageUrl: String? = null)
 
 @Serializable
 data class EditItemRoute(val itemId: Int)

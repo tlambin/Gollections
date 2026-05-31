@@ -47,7 +47,12 @@ class ItemViewModel @Inject constructor(
     private val _formState = MutableStateFlow(ItemFormState())
     val formState: StateFlow<ItemFormState> = _formState.asStateFlow()
 
-    fun resetFormState(preSelectedCollectionId: Long? = null, collectionsList: List<Collection> = emptyList()) {
+    fun resetFormState(
+        preSelectedCollectionId: Long? = null,
+        collectionsList: List<Collection> = emptyList(),
+        scannedTitle: String? = null,      // <-- AJOUT
+        scannedImageUrl: String? = null    // <-- AJOUT
+    ) {
         val initialPath = mutableListOf<Long>()
         if (preSelectedCollectionId != null && collectionsList.isNotEmpty()) {
             var curr: Long? = preSelectedCollectionId
@@ -56,7 +61,11 @@ class ItemViewModel @Inject constructor(
                 curr = collectionsList.find { it.id == curr }?.parentId
             }
         }
-        _formState.value = ItemFormState(selectedPath = initialPath)
+        _formState.value = ItemFormState(
+            selectedPath = initialPath,
+            title = scannedTitle ?: "",      // <-- MODIFICATION
+            imageUrl = scannedImageUrl ?: "" // <-- MODIFICATION
+        )
     }
 
     fun loadItemIntoForm(itemWithTags: CollectionItemWithTags, collectionsList: List<Collection>) {

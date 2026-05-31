@@ -62,8 +62,8 @@ class MainActivity : ComponentActivity() {
                                 onCollectionClick = { collectionId ->
                                     navController.navigate(CollectionDetailRoute(collectionId = collectionId))
                                 },
-                                onAddItemClick = {
-                                    navController.navigate(AddItemRoute())
+                                onAddItemClick = { title, imageUrl ->
+                                    navController.navigate(AddItemRoute(scannedTitle = title, scannedImageUrl = imageUrl))
                                 }
                             )
                         }
@@ -79,8 +79,12 @@ class MainActivity : ComponentActivity() {
                                 onItemClick = { itemId ->
                                     navController.navigate(ItemDetailRoute(itemId = itemId)) // <-- RESTAURÉ ICI
                                 },
-                                onAddItemClick = {
-                                    navController.navigate(AddItemRoute(preSelectedCollectionId = route.collectionId))
+                                onAddItemClick = { title, imageUrl ->
+                                    navController.navigate(AddItemRoute(
+                                        preSelectedCollectionId = route.collectionId,
+                                        scannedTitle = title,
+                                        scannedImageUrl = imageUrl
+                                    ))
                                 },
                                 onCollectionClick = { subCollectionId ->
                                     navController.navigate(CollectionDetailRoute(collectionId = subCollectionId))
@@ -95,6 +99,8 @@ class MainActivity : ComponentActivity() {
                             AddItemScreen(
                                 preSelectedCollectionId = route.preSelectedCollectionId,
                                 viewModel = viewModel,
+                                scannedTitle = route.scannedTitle,
+                                scannedImageUrl = route.scannedImageUrl,
                                 onBackClick = { navController.popBackStack() },
                                 onSaveClick = { newItem, tags ->
                                     viewModel.insertItemWithTags(newItem, tags)

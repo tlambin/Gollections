@@ -16,12 +16,14 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.pokyx.gollections.data.repository.BarcodeRepository
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val repository: CollectionRepository,
-    private val imageProcessor: ImageProcessorRepository
+    private val imageProcessor: ImageProcessorRepository,
+    private val barcodeRepository: BarcodeRepository
 ) : ViewModel() {
 
     val allItemsWithTags = repository.getAllItemsWithTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -52,6 +54,14 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             val resultUri = imageProcessor.processImage(sourceUri, shouldCutout)
             onResult(resultUri?.toString())
+        }
+    }
+
+    fun fetchItemFromBarcode(barcode: String, onResult: (title: String?, imageUrl: String?) -> Unit) {
+        viewModelScope.launch {
+            val result = barcodeRepository.getInfoFromBarcode(barcode)
+            val info = result.getOrNull()
+            onResult(info?.title, info?.imageUrl)
         }
     }
 }

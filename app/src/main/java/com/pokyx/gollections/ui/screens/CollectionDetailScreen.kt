@@ -80,7 +80,7 @@ fun CollectionDetailScreen(
     viewModel: CollectionDetailViewModel,
     onBackClick: () -> Unit,
     onItemClick: (Int) -> Unit,
-    onAddItemClick: () -> Unit,
+    onAddItemClick: (title: String?, imageUrl: String?) -> Unit,
     onCollectionClick: (Long) -> Unit
 ) {
     val context = LocalContext.current
@@ -252,8 +252,19 @@ fun CollectionDetailScreen(
                                 isFabExpanded = false
                                 val barcodeScanner = BarcodeScanner(context)
                                 barcodeScanner.startScan(
-                                    onScanSuccess = { barcode -> Toast.makeText(context, "Code détecté : $barcode", Toast.LENGTH_LONG).show() },
-                                    onScanFailure = { exception -> android.util.Log.e("BarcodeScan", "Erreur lors du scan : ${exception.message}") }
+                                    onScanSuccess = { barcode ->
+                                        Toast.makeText(context, "Recherche de l'objet...", Toast.LENGTH_SHORT).show()
+                                        viewModel.fetchItemFromBarcode(barcode) { title, imageUrl ->
+                                            if (title != null) {
+                                                onAddItemClick(title, imageUrl) // Ouvre l'écran d'ajout pré-rempli
+                                            } else {
+                                                Toast.makeText(context, "Objet introuvable", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    },
+                                    onScanFailure = { exception ->
+                                        android.util.Log.e("BarcodeScan", "Erreur : ${exception.message}")
+                                    }
                                 )
                             }
                         )
@@ -265,7 +276,7 @@ fun CollectionDetailScreen(
                         MultiFabItem(
                             text = "Ajouter un objet",
                             icon = Icons.Default.Add,
-                            onClick = { isFabExpanded = false; onAddItemClick() }
+                            onClick = { isFabExpanded = false; onAddItemClick(null, null) } // <-- Ajoute les null ici
                         )
                     }
                 }

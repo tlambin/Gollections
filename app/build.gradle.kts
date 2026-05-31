@@ -86,4 +86,11 @@ dependencies {
 
     // Google Code Scanner API (Play Services)
     implementation(libs.play.services.code.scanner)
+
+    // Retrofit & OkHttp pour les appels réseau
+    implementation(libs.retrofit)
+    implementation(libs.converter.kotlinx.serialization)
+    implementation(libs.okhttp)
+    implementation(libs.logging.interceptor)
+    implementation(libs.kotlinx.serialization.json)
 }
