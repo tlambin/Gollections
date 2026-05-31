@@ -15,6 +15,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -22,10 +23,8 @@ import kotlin.math.min
 
 @Singleton
 class ImageProcessorRepository @Inject constructor(
-    @ApplicationContext context: Context // Passé en simple paramètre pour plaire à Hilt et à Kotlin
+    @ApplicationContext private val context: Context // <-- MODIFICATION: Injection propre, plus besoin de redéclarer la variable
 ) {
-    // Variable locale initialisée proprement
-    private val context: Context = context.applicationContext
 
     suspend fun processImage(sourceUri: Uri, shouldCutout: Boolean): Uri? = withContext(Dispatchers.IO) {
         try {
@@ -77,7 +76,8 @@ class ImageProcessorRepository @Inject constructor(
     }
 
     private fun saveBitmapToInternalStorage(bitmap: Bitmap, isTransparent: Boolean): Uri {
-        val file = File(context.filesDir, "gollections_img_${System.currentTimeMillis()}.webp")
+        // <-- MODIFICATION: Utilisation de UUID pour garantir l'unicité
+        val file = File(context.filesDir, "gollections_img_${UUID.randomUUID()}.webp")
         FileOutputStream(file).use { out ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 if (isTransparent) {

@@ -30,27 +30,28 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.data.Collection as DBCollection
-import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
 import com.pokyx.gollections.ui.components.CollectionDialog
+import com.pokyx.gollections.ui.viewmodels.DashboardViewModel
+import com.pokyx.gollections.utils.BarcodeScanner
 import com.pokyx.gollections.utils.getEmojiForCollection
 import com.pokyx.gollections.utils.getUnitForCollection
+import com.pokyx.gollections.ui.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     onCollectionClick: (Long) -> Unit,
     onAddItemClick: () -> Unit,
-    viewModel: CollectionViewModel = hiltViewModel()
+    viewModel: DashboardViewModel
 ) {
     val context = LocalContext.current
 
@@ -61,8 +62,6 @@ fun DashboardScreen(
     val searchResultsWithTags by viewModel.searchedItemsWithTags.collectAsStateWithLifecycle()
 
     var showAddCollectionDialog by remember { mutableStateOf(false) }
-
-    // État pour le FAB multiple
     var isFabExpanded by remember { mutableStateOf(false) }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -77,9 +76,7 @@ fun DashboardScreen(
             )
         },
         floatingActionButton = {
-            // NOUVEAU MENU FLOTTANT (SPEED DIAL)
             Column(horizontalAlignment = Alignment.End) {
-                // Sous-menus animés
                 AnimatedVisibility(
                     visible = isFabExpanded,
                     enter = fadeIn() + slideInVertically(initialOffsetY = { 50 }),
@@ -95,14 +92,16 @@ fun DashboardScreen(
                             icon = CameraIcon,
                             onClick = {
                                 isFabExpanded = false
-                                // Appel du scanner natif
-                                viewModel.triggerBarcodeScan(context) { barcode ->
-                                    // RECEPTION DU CODE !
-                                    Toast.makeText(context, "Code détecté : $barcode", Toast.LENGTH_LONG).show()
-
-                                    // TODO : C'est ici qu'on lancera la recherche d'infos (API)
-                                    // ou qu'on ouvrira l'écran de création pré-rempli.
-                                }
+                                // Instanciation locale sans fuite de mémoire
+                                val barcodeScanner = BarcodeScanner(context)
+                                barcodeScanner.startScan(
+                                    onScanSuccess = { barcode ->
+                                        Toast.makeText(context, "Code détecté : $barcode", Toast.LENGTH_LONG).show()
+                                    },
+                                    onScanFailure = { exception ->
+                                        android.util.Log.e("BarcodeScan", "Erreur lors du scan : ${exception.message}")
+                                    }
+                                )
                             }
                         )
                         MultiFabItem(
@@ -118,30 +117,18 @@ fun DashboardScreen(
                     }
                 }
 
-                // Bouton Principal Rotatif
                 FloatingActionButton(
                     onClick = { isFabExpanded = !isFabExpanded },
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ) {
-                    val rotation by animateFloatAsState(
-                        targetValue = if (isFabExpanded) 45f else 0f,
-                        label = "fab_rotation"
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Menu Actions",
-                        modifier = Modifier
-                            .size(28.dp)
-                            .rotate(rotation)
-                    )
+                    val rotation by animateFloatAsState(targetValue = if (isFabExpanded) 45f else 0f, label = "fab_rotation")
+                    Icon(Icons.Default.Add, contentDescription = "Menu Actions", modifier = Modifier.size(28.dp).rotate(rotation))
                 }
             }
         }
     ) { paddingValues ->
-        // On englobe le contenu dans une Box pour pouvoir placer l'overlay noir par-dessus
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 item {
                     TextField(
@@ -174,16 +161,9 @@ fun DashboardScreen(
                 }
             }
 
-            // Filtre sombre recouvrant l'écran quand le FAB est ouvert
             if (isFabExpanded) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.4f)) // Voile noir semi-transparent
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { isFabExpanded = false } // Ferme le menu si on clique dans le vide
+                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { isFabExpanded = false }
                 )
             }
         }
@@ -192,16 +172,18 @@ fun DashboardScreen(
     if (showAddCollectionDialog) {
         CollectionDialog(
             title = stringResource(R.string.new_collection),
-            viewModel = viewModel,
             onDismiss = { showAddCollectionDialog = false },
             onConfirm = { name, cover ->
                 viewModel.insertCollection(name = name, cover = cover, parentId = null)
                 showAddCollectionDialog = false
-            }
+            },
+            onProcessImage = { uri, cutout, callback -> viewModel.processAndSaveImage(uri, cutout, callback) }
         )
     }
 }
 
+// Les fonctions StatsSlider, StatCardContent, CollectionsGrid, CollectionItemCard, CollectionCard et AddCollectionCard
+// restent inchangées, assure-toi juste qu'elles prennent 'viewModel: DashboardViewModel' si elles l'utilisaient.
 @Composable
 fun StatsSlider(totalItems: Int, totalCollections: Int, loanedItems: Int) {
     val pagerState = rememberPagerState(pageCount = { 3 })
@@ -228,7 +210,7 @@ fun StatsSlider(totalItems: Int, totalCollections: Int, loanedItems: Int) {
 fun StatCardContent(title: String, value: String, sub: String) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(text = title, fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)); Text(text = value, fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer); Text(text = sub, fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)) } }
 
 @Composable
-fun CollectionsGrid(collections: List<DBCollection>, allCollections: List<DBCollection>, items: List<com.pokyx.gollections.data.tag.CollectionItemWithTags>, onCollectionClick: (Long) -> Unit, onAddCollectionClick: () -> Unit, viewModel: CollectionViewModel) {
+fun CollectionsGrid(collections: List<DBCollection>, allCollections: List<DBCollection>, items: List<com.pokyx.gollections.data.tag.CollectionItemWithTags>, onCollectionClick: (Long) -> Unit, onAddCollectionClick: () -> Unit, viewModel: DashboardViewModel) {
     val totalSlots = collections.size + 1
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         for (i in 0 until totalSlots step 2) {
@@ -241,7 +223,7 @@ fun CollectionsGrid(collections: List<DBCollection>, allCollections: List<DBColl
 }
 
 @Composable
-fun CollectionItemCard(collection: DBCollection, allCollections: List<DBCollection>, items: List<com.pokyx.gollections.data.tag.CollectionItemWithTags>, onCollectionClick: (Long) -> Unit, modifier: Modifier = Modifier, viewModel: CollectionViewModel) {
+fun CollectionItemCard(collection: DBCollection, allCollections: List<DBCollection>, items: List<com.pokyx.gollections.data.tag.CollectionItemWithTags>, onCollectionClick: (Long) -> Unit, modifier: Modifier = Modifier, viewModel: DashboardViewModel) {
     val context = LocalContext.current
     val count = viewModel.getRecursiveItemCount(collection.id, allCollections, items)
     val unit = getUnitForCollection(context, collection.name, count)

@@ -36,7 +36,7 @@ import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.data.tag.Tag
-import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
+import com.pokyx.gollections.ui.viewmodels.ItemViewModel
 import com.pokyx.gollections.utils.AddTagDialog
 import com.pokyx.gollections.utils.getDynamicStatusOptions
 import java.io.File
@@ -50,7 +50,7 @@ fun EditItemScreen(
     itemId: Int,
     onBackClick: () -> Unit,
     onSaveClick: (CollectionItem, List<Tag>) -> Unit,
-    viewModel: CollectionViewModel = hiltViewModel()
+    viewModel: ItemViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val itemWithTags by viewModel.getItemByIdWithTags(itemId).collectAsStateWithLifecycle(initialValue = null)
@@ -231,7 +231,6 @@ fun EditItemScreen(
                         viewModel.processAndSaveImage(uri, true) { finalUrl ->
                             isProcessingImage = false
                             if (finalUrl != null) viewModel.updateForm { it.copy(imageUrl = finalUrl) }
-                            // CORRECTION DU TOAST ICI : Utilisation de la signature propre
                             else Toast.makeText(context, R.string.toast_cutout_error, Toast.LENGTH_SHORT).show()
                         }
                     }

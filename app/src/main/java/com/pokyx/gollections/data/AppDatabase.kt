@@ -11,7 +11,7 @@ import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
 @Database(
     entities = [CollectionItem::class, Collection::class, Tag::class, CollectionItemTagCrossRef::class],
     version = 12,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
 

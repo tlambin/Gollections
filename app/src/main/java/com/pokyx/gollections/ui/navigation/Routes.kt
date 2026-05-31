@@ -6,10 +6,10 @@ import kotlinx.serialization.Serializable
 object DashboardRoute
 
 @Serializable
-data class CollectionListRoute(val collectionId: Long)
+data class CollectionDetailRoute(val collectionId: Long)
 
 @Serializable
-data class ItemDetailRoute(val itemId: Int)
+data class ItemDetailRoute(val itemId: Int) // <-- RESTAURÉ ICI
 
 @Serializable
 data class AddItemRoute(val preSelectedCollectionId: Long? = null)

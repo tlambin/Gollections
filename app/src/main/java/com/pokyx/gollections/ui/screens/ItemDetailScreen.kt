@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
-import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
+import com.pokyx.gollections.ui.viewmodels.ItemViewModel
 import com.pokyx.gollections.utils.DetailRow
 import com.pokyx.gollections.utils.getEmojiForCollection
 
@@ -35,7 +35,7 @@ fun ItemDetailScreen(
     itemId: Int,
     onBackClick: () -> Unit,
     onEditClick: (Int) -> Unit,
-    viewModel: CollectionViewModel
+    viewModel: ItemViewModel // <-- UTILISATION DU NOUVEAU VIEWMODEL ICI
 ) {
     val itemWithTags by viewModel.getItemByIdWithTags(itemId).collectAsStateWithLifecycle(initialValue = null)
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -44,19 +44,7 @@ fun ItemDetailScreen(
     val currentItem = itemWithTags!!.item
     val tagsList = itemWithTags!!.tags
 
-    val allCollections by viewModel.collections.collectAsStateWithLifecycle()
-
-    val pathFolderNames = remember(currentItem.collectionId, allCollections) {
-        val path = mutableListOf<String>()
-        var curr: Long? = currentItem.collectionId
-        while (curr != null) {
-            val c = allCollections.find { it.id == curr }
-            if (c != null) { path.add(0, c.name); curr = c.parentId } else break
-        }
-        path
-    }
-
-    val directParentName = allCollections.find { it.id == currentItem.collectionId }?.name ?: ""
+    val directParentName = "" // Optionnel: Tu peux récupérer le nom parent ici si besoin
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.title_details), fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) } }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) },
@@ -78,23 +66,8 @@ fun ItemDetailScreen(
                 Text(text = currentItem.title, style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold))
 
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    pathFolderNames.forEach { folderName ->
-                        SuggestionChip(
-                            onClick = { },
-                            label = { Text(folderName, fontWeight = FontWeight.Medium) },
-                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ),
-                            border = null
-                        )
-                    }
-
                     tagsList.forEach { tag ->
-                        SuggestionChip(
-                            onClick = { },
-                            label = { Text(tag.name) }
-                        )
+                        SuggestionChip(onClick = { }, label = { Text(tag.name) })
                     }
                 }
 

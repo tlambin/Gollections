@@ -17,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -26,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
-import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
 import com.pokyx.gollections.utils.getEmojiForCollection
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,7 +35,7 @@ fun CollectionDialog(
     initialCover: String = "",
     onDismiss: () -> Unit,
     onConfirm: (name: String, cover: String) -> Unit,
-    viewModel: CollectionViewModel
+    onProcessImage: (Uri, Boolean, (String?) -> Unit) -> Unit
 ) {
     val context = LocalContext.current
     var name by remember { mutableStateOf(initialName) }
@@ -48,11 +46,10 @@ fun CollectionDialog(
     var isProcessing by remember { mutableStateOf(false) }
     var tempEmoji by remember { mutableStateOf("") }
 
-    // Launcher pour ouvrir la galerie photo
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
             isProcessing = true
-            viewModel.processAndSaveImage(uri, false) { savedUrl ->
+            onProcessImage(uri, false) { savedUrl ->
                 isProcessing = false
                 if (savedUrl != null) {
                     cover = savedUrl
@@ -72,7 +69,6 @@ fun CollectionDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                // ZONE DE L'ICÔNE (Cercle avec badge)
                 Box(contentAlignment = Alignment.Center) {
                     Box(
                         modifier = Modifier
@@ -111,7 +107,6 @@ fun CollectionDialog(
                         }
                     }
 
-                    // Menu des options de couverture
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.choose_gallery)) },
@@ -138,12 +133,10 @@ fun CollectionDialog(
                     }
                 }
 
-                // SI SÉLECTION ÉMOJI : Affichage d'un champ dédié temporaire pour saisir l'émoji du clavier
                 if (showEmojiInput) {
                     OutlinedTextField(
                         value = tempEmoji,
                         onValueChange = { input ->
-                            // Limite la saisie pour ne capturer qu'un seul émoji complexe
                             if (input.length <= 4) {
                                 tempEmoji = input
                                 if (input.isNotBlank()) {
@@ -153,17 +146,12 @@ fun CollectionDialog(
                         },
                         label = { Text(stringResource(R.string.type_emoji)) },
                         singleLine = true,
-                        trailingIcon = {
-                            TextButton(onClick = { showEmojiInput = false }) {
-                                Text("OK")
-                            }
-                        },
+                        trailingIcon = { TextButton(onClick = { showEmojiInput = false }) { Text("OK") } },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
 
-                // CHAMP DE TEXTE NORMAL POUR LE NOM DE LA COLLECTION
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },

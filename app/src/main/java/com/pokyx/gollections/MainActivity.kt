@@ -18,17 +18,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.pokyx.gollections.ui.navigation.AddItemRoute
-import com.pokyx.gollections.ui.navigation.CollectionListRoute
+import com.pokyx.gollections.ui.navigation.CollectionDetailRoute
 import com.pokyx.gollections.ui.navigation.DashboardRoute
 import com.pokyx.gollections.ui.navigation.EditItemRoute
 import com.pokyx.gollections.ui.navigation.ItemDetailRoute
 import com.pokyx.gollections.ui.screens.AddItemScreen
-import com.pokyx.gollections.ui.screens.CollectionListScreen
+import com.pokyx.gollections.ui.screens.CollectionDetailScreen
 import com.pokyx.gollections.ui.screens.DashboardScreen
 import com.pokyx.gollections.ui.screens.EditItemScreen
 import com.pokyx.gollections.ui.screens.ItemDetailScreen
 import com.pokyx.gollections.ui.theme.GollectionsTheme
-import com.pokyx.gollections.ui.viewmodels.CollectionViewModel
+import com.pokyx.gollections.ui.viewmodels.CollectionDetailViewModel
+import com.pokyx.gollections.ui.viewmodels.DashboardViewModel
+import com.pokyx.gollections.ui.viewmodels.ItemViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -44,7 +46,6 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
-                    val globalViewModel: CollectionViewModel = hiltViewModel()
 
                     NavHost(
                         navController = navController,
@@ -55,10 +56,11 @@ class MainActivity : ComponentActivity() {
                         popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) + fadeOut(tween(300)) }
                     ) {
                         composable<DashboardRoute> {
+                            val viewModel: DashboardViewModel = hiltViewModel()
                             DashboardScreen(
-                                viewModel = globalViewModel,
+                                viewModel = viewModel,
                                 onCollectionClick = { collectionId ->
-                                    navController.navigate(CollectionListRoute(collectionId = collectionId))
+                                    navController.navigate(CollectionDetailRoute(collectionId = collectionId))
                                 },
                                 onAddItemClick = {
                                     navController.navigate(AddItemRoute())
@@ -66,34 +68,36 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable<CollectionListRoute> { backStackEntry ->
-                            val route: CollectionListRoute = backStackEntry.toRoute()
+                        composable<CollectionDetailRoute> { backStackEntry ->
+                            val route: CollectionDetailRoute = backStackEntry.toRoute()
+                            val viewModel: CollectionDetailViewModel = hiltViewModel()
 
-                            CollectionListScreen(
+                            CollectionDetailScreen(
                                 collectionId = route.collectionId,
-                                viewModel = globalViewModel,
+                                viewModel = viewModel,
                                 onBackClick = { navController.popBackStack() },
                                 onItemClick = { itemId ->
-                                    navController.navigate(ItemDetailRoute(itemId = itemId))
+                                    navController.navigate(ItemDetailRoute(itemId = itemId)) // <-- RESTAURÉ ICI
                                 },
                                 onAddItemClick = {
                                     navController.navigate(AddItemRoute(preSelectedCollectionId = route.collectionId))
                                 },
                                 onCollectionClick = { subCollectionId ->
-                                    navController.navigate(CollectionListRoute(collectionId = subCollectionId))
+                                    navController.navigate(CollectionDetailRoute(collectionId = subCollectionId))
                                 }
                             )
                         }
 
                         composable<AddItemRoute> { backStackEntry ->
                             val route: AddItemRoute = backStackEntry.toRoute()
+                            val viewModel: ItemViewModel = hiltViewModel()
 
                             AddItemScreen(
                                 preSelectedCollectionId = route.preSelectedCollectionId,
-                                viewModel = globalViewModel,
+                                viewModel = viewModel,
                                 onBackClick = { navController.popBackStack() },
                                 onSaveClick = { newItem, tags ->
-                                    globalViewModel.insertItemWithTags(newItem, tags)
+                                    viewModel.insertItemWithTags(newItem, tags)
                                     navController.popBackStack()
                                 }
                             )
@@ -101,9 +105,11 @@ class MainActivity : ComponentActivity() {
 
                         composable<ItemDetailRoute> { backStackEntry ->
                             val route: ItemDetailRoute = backStackEntry.toRoute()
+                            val viewModel: ItemViewModel = hiltViewModel()
+
                             ItemDetailScreen(
                                 itemId = route.itemId,
-                                viewModel = globalViewModel,
+                                viewModel = viewModel,
                                 onBackClick = { navController.popBackStack() },
                                 onEditClick = { id ->
                                     navController.navigate(EditItemRoute(itemId = id))
@@ -113,13 +119,14 @@ class MainActivity : ComponentActivity() {
 
                         composable<EditItemRoute> { backStackEntry ->
                             val route: EditItemRoute = backStackEntry.toRoute()
+                            val viewModel: ItemViewModel = hiltViewModel()
 
                             EditItemScreen(
                                 itemId = route.itemId,
-                                viewModel = globalViewModel,
+                                viewModel = viewModel,
                                 onBackClick = { navController.popBackStack() },
                                 onSaveClick = { updatedItem, tags ->
-                                    globalViewModel.updateItemWithTags(updatedItem, tags)
+                                    viewModel.updateItemWithTags(updatedItem, tags)
                                     navController.popBackStack()
                                 }
                             )
