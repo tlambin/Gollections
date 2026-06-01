@@ -9,8 +9,8 @@ import com.pokyx.gollections.data.tag.TagDao
 import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
 
 @Database(
-    entities = [CollectionItem::class, Collection::class, Tag::class, CollectionItemTagCrossRef::class],
-    version = 12,
+    entities = [CollectionItem::class, Collection::class, Tag::class, CollectionItemTagCrossRef::class, ItemProperty::class],
+    version = 13,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

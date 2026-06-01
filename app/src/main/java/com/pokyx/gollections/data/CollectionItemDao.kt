@@ -53,4 +53,10 @@ interface CollectionItemDao {
         WHERE Tag.name = :tagName
     """)
     suspend fun getItemsWithTagSync(tagName: String): List<CollectionItemWithTags>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertProperties(properties: List<ItemProperty>)
+
+    @Query("DELETE FROM item_properties WHERE itemId = :itemId")
+    suspend fun clearPropertiesForItem(itemId: Int)
 }

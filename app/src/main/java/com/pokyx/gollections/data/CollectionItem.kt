@@ -30,5 +30,6 @@ data class CollectionItem(
     val price: String = "",
     val status: String = "Non commencé",
     val comment: String = "",
-    val imageUrl: String = ""
+    val imageUrl: String = "",
+    val itemType: String = "OTHER"
 )

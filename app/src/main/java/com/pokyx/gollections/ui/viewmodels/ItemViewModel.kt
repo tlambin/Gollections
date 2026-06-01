@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.CollectionItem
+import com.pokyx.gollections.data.ItemProperty
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ImageProcessorRepository
 import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
@@ -33,7 +34,9 @@ data class ItemFormState(
     val loanDate: String = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
     val imageUrl: String = "",
     val selectedPath: List<Long> = emptyList(),
-    val selectedTags: Set<Tag> = emptySet()
+    val selectedTags: Set<Tag> = emptySet(),
+    val itemType: String = "OTHER", // NOUVEAU
+    val properties: Map<String, String> = emptyMap() // NOUVEAU : Stocke { "Réalisateur": "Nolan", ... }
 )
 
 @HiltViewModel
@@ -50,8 +53,8 @@ class ItemViewModel @Inject constructor(
     fun resetFormState(
         preSelectedCollectionId: Long? = null,
         collectionsList: List<Collection> = emptyList(),
-        scannedTitle: String? = null,      // <-- AJOUT
-        scannedImageUrl: String? = null    // <-- AJOUT
+        scannedTitle: String? = null,
+        scannedImageUrl: String? = null
     ) {
         val initialPath = mutableListOf<Long>()
         if (preSelectedCollectionId != null && collectionsList.isNotEmpty()) {
@@ -63,8 +66,8 @@ class ItemViewModel @Inject constructor(
         }
         _formState.value = ItemFormState(
             selectedPath = initialPath,
-            title = scannedTitle ?: "",      // <-- MODIFICATION
-            imageUrl = scannedImageUrl ?: "" // <-- MODIFICATION
+            title = scannedTitle ?: "",
+            imageUrl = scannedImageUrl ?: ""
         )
     }
 
@@ -76,6 +79,9 @@ class ItemViewModel @Inject constructor(
             path.add(0, curr)
             curr = collectionsList.find { it.id == curr }?.parentId
         }
+
+        val propsMap = itemWithTags.properties.associate { it.label to it.value }
+
         _formState.value = ItemFormState(
             title = currentItem.title,
             purchaseDate = currentItem.purchaseDate,
@@ -86,7 +92,9 @@ class ItemViewModel @Inject constructor(
             loanDate = currentItem.loanDate,
             imageUrl = currentItem.imageUrl,
             selectedPath = path,
-            selectedTags = itemWithTags.tags.toSet()
+            selectedTags = itemWithTags.tags.toSet(),
+            itemType = currentItem.itemType,
+            properties = propsMap
         )
     }
 
@@ -94,22 +102,48 @@ class ItemViewModel @Inject constructor(
         _formState.update(transform)
     }
 
-    fun insertItemWithTags(item: CollectionItem, tags: List<Tag>) {
+    // Génère les champs par défaut quand on change de type d'objet
+    fun changeItemType(newType: String) {
+        val defaultProps = when (newType) {
+            "MOVIE" -> mapOf("Réalisateur" to "", "Date de sortie" to "", "Synopsis" to "")
+            "BOOK" -> mapOf("Auteur" to "", "Date de publication" to "", "Résumé" to "", "Nombre de pages" to "")
+            "GAME" -> mapOf("Studio" to "", "Plateforme" to "", "Date de sortie" to "", "Description" to "")
+            "MUSIC" -> mapOf("Artiste" to "", "Album" to "", "Date de sortie" to "")
+            else -> emptyMap()
+        }
+        updateForm { it.copy(itemType = newType, properties = defaultProps) }
+    }
+
+    fun updateProperty(label: String, value: String) {
+        updateForm { it.copy(properties = it.properties + (label to value)) }
+    }
+
+    fun insertItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) {
         viewModelScope.launch {
             val itemId = repository.insertItem(item).toInt()
             tags.forEach { tag ->
                 repository.insertItemTagCrossRef(CollectionItemTagCrossRef(itemId, tag.id))
             }
+            val itemProperties = properties.map { (key, value) ->
+                ItemProperty(itemId = itemId, label = key, value = value)
+            }
+            repository.insertItemProperties(itemProperties)
         }
     }
 
-    fun updateItemWithTags(item: CollectionItem, tags: List<Tag>) {
+    fun updateItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) {
         viewModelScope.launch {
             repository.updateItem(item)
             repository.clearTagsForItem(item.id)
+            repository.clearPropertiesForItem(item.id)
+
             tags.forEach { tag ->
                 repository.insertItemTagCrossRef(CollectionItemTagCrossRef(item.id, tag.id))
             }
+            val itemProperties = properties.map { (key, value) ->
+                ItemProperty(itemId = item.id, label = key, value = value)
+            }
+            repository.insertItemProperties(itemProperties)
         }
     }
 

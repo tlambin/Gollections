@@ -102,8 +102,8 @@ class MainActivity : ComponentActivity() {
                                 scannedTitle = route.scannedTitle,
                                 scannedImageUrl = route.scannedImageUrl,
                                 onBackClick = { navController.popBackStack() },
-                                onSaveClick = { newItem, tags ->
-                                    viewModel.insertItemWithTags(newItem, tags)
+                                onSaveClick = { newItem, tags, properties ->
+                                    viewModel.insertItemWithTags(newItem, tags, properties)
                                     navController.popBackStack()
                                 }
                             )
@@ -131,8 +131,8 @@ class MainActivity : ComponentActivity() {
                                 itemId = route.itemId,
                                 viewModel = viewModel,
                                 onBackClick = { navController.popBackStack() },
-                                onSaveClick = { updatedItem, tags ->
-                                    viewModel.updateItemWithTags(updatedItem, tags)
+                                onSaveClick = { updatedItem, tags, properties ->
+                                    viewModel.updateItemWithTags(updatedItem, tags, properties)
                                     navController.popBackStack()
                                 }
                             )

@@ -11,6 +11,7 @@ import com.pokyx.gollections.data.tag.TagDao
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.pokyx.gollections.data.ItemProperty
 
 @Singleton
 class CollectionRepository @Inject constructor(
@@ -36,6 +37,10 @@ class CollectionRepository @Inject constructor(
     fun searchItemsWithTags(searchQuery: String): Flow<List<CollectionItemWithTags>> = collectionItemDao.searchItemsWithTags(searchQuery)
     fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = collectionItemDao.getItemByIdWithTags(id)
     suspend fun insertItem(item: CollectionItem): Long = collectionItemDao.insertItem(item)
+
+    suspend fun insertItemProperties(properties: List<ItemProperty>) = collectionItemDao.insertProperties(properties)
+
+    suspend fun clearPropertiesForItem(itemId: Int) = collectionItemDao.clearPropertiesForItem(itemId)
     suspend fun updateItem(item: CollectionItem) = collectionItemDao.updateItem(item)
     suspend fun deleteItem(item: CollectionItem) = collectionItemDao.deleteItem(item)
     suspend fun insertItemTagCrossRef(crossRef: CollectionItemTagCrossRef) = collectionItemDao.insertItemTagCrossRef(crossRef)

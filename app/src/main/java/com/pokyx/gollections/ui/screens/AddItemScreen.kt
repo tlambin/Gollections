@@ -48,10 +48,10 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun AddItemScreen(
     preSelectedCollectionId: Long? = null,
-    scannedTitle: String? = null,     // <-- AJOUT
+    scannedTitle: String? = null,
     scannedImageUrl: String? = null,
     onBackClick: () -> Unit,
-    onSaveClick: (CollectionItem, List<Tag>) -> Unit,
+    onSaveClick: (CollectionItem, List<Tag>, Map<String, String>) -> Unit, // <-- MISE A JOUR ICI
     viewModel: ItemViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -93,6 +93,11 @@ fun AddItemScreen(
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) { pendingImageUri = uri; showDetourageConfirmation = true } }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success -> if (success && tempPhotoUri != null) { pendingImageUri = tempPhotoUri; showDetourageConfirmation = true } }
 
+    val itemTypes = listOf(
+        "MOVIE" to "🎬 Film", "BOOK" to "📚 Livre",
+        "GAME" to "🎮 Jeu", "MUSIC" to "🎵 Musique", "OTHER" to "📦 Autre"
+    )
+
     Scaffold(
         topBar = { TopAppBar(title = { Text(state.title.ifBlank { stringResource(R.string.title_new_item) }, fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Default.Close, contentDescription = null) } }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) }
     ) { paddingValues ->
@@ -104,7 +109,34 @@ fun AddItemScreen(
                 else { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("📸", fontSize = 40.sp); Spacer(modifier = Modifier.height(4.dp)); Text(stringResource(R.string.dialog_illustration_text), color = MaterialTheme.colorScheme.outline, fontSize = 13.sp) } }
             }
 
+            Text("Type d'objet", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                itemTypes.forEach { (typeId, label) ->
+                    FilterChip(
+                        selected = state.itemType == typeId,
+                        onClick = { viewModel.changeItemType(typeId) },
+                        label = { Text(label) }
+                    )
+                }
+            }
+
             OutlinedTextField(value = state.title, onValueChange = { text -> viewModel.updateForm { it.copy(title = text) } }, label = { Text(stringResource(R.string.label_title)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+
+            // AFFICHAGE DYNAMIQUE DES PROPRIETES
+            if (state.properties.isNotEmpty()) {
+                Text("Informations spécifiques", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
+                state.properties.forEach { (label, value) ->
+                    OutlinedTextField(
+                        value = value,
+                        onValueChange = { newValue -> viewModel.updateProperty(label, newValue) },
+                        label = { Text(label) },
+                        modifier = Modifier.fillMaxWidth().then(if (label in listOf("Synopsis", "Résumé", "Description")) Modifier.height(120.dp) else Modifier),
+                        maxLines = if (label in listOf("Synopsis", "Résumé", "Description")) 5 else 1,
+                        singleLine = label !in listOf("Synopsis", "Résumé", "Description"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            }
 
             if (collectionsList.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -167,21 +199,7 @@ fun AddItemScreen(
                 }
             }
 
-            Text(text = stringResource(R.string.title_loan_management), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(stringResource(R.string.loan_switch_text), fontWeight = FontWeight.Medium); Switch(checked = state.isLoaned, onCheckedChange = { value -> viewModel.updateForm { it.copy(isLoaned = value) } }) }
-                    if (state.isLoaned) {
-                        OutlinedTextField(value = state.loanTo, onValueChange = { text -> viewModel.updateForm { it.copy(loanTo = text) } }, label = { Text(stringResource(R.string.label_loan_to)) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedTextField(value = state.loanDate, onValueChange = {}, readOnly = true, label = { Text(stringResource(R.string.label_loan_date)) }, modifier = Modifier.fillMaxWidth())
-                            Box(modifier = Modifier.matchParentSize().clickable { showLoanDatePicker = true })
-                        }
-                    }
-                }
-            }
-
-            Text(text = stringResource(R.string.title_acquisition_info), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(text = stringResource(R.string.title_acquisition_info), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(value = state.price, onValueChange = { input -> if (input.all { it.isDigit() || it == '.' || it == ',' } && input.count { it == '.' || it == ',' } <= 1) viewModel.updateForm { it.copy(price = input) } }, label = { Text(stringResource(R.string.label_price)) }, modifier = Modifier.weight(1.5f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
                 Box(modifier = Modifier.weight(1.5f)) {
@@ -195,11 +213,12 @@ fun AddItemScreen(
                 onClick = {
                     if (state.title.isNotBlank() && finalSelectedId != null) {
                         val newItem = CollectionItem(
-                            title = state.title, collectionId = finalSelectedId,
+                            title = state.title.trim(), collectionId = finalSelectedId,
                             purchaseDate = state.purchaseDate.trim(), price = state.price.trim(), imageUrl = state.imageUrl,
-                            status = state.status, isLoaned = state.isLoaned, loanTo = if (state.isLoaned) state.loanTo.trim() else "", loanDate = if (state.isLoaned) state.loanDate else ""
+                            status = state.status, isLoaned = state.isLoaned, loanTo = if (state.isLoaned) state.loanTo.trim() else "", loanDate = if (state.isLoaned) state.loanDate else "",
+                            itemType = state.itemType // <-- AJOUT
                         )
-                        onSaveClick(newItem, state.selectedTags.toList())
+                        onSaveClick(newItem, state.selectedTags.toList(), state.properties)
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp), enabled = state.title.isNotBlank() && finalSelectedId != null
