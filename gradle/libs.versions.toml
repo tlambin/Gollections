@@ -15,6 +15,8 @@ composeBom = "2026.02.01"
 lifecycleViewmodelCompose = "2.8.0"
 loggingInterceptor = "4.12.0"
 okhttp = "4.12.0"
+pagingCompose = "3.3.0"
+pagingRuntimeKtx = "3.3.0"
 playServicesCodeScanner = "16.1.0"
 playServicesMlkitSubjectSegmentation = "16.0.0-beta1"
 retrofit = "2.11.0"
@@ -30,6 +32,8 @@ androidx-compose-material-icons-core = { module = "androidx.compose.material:mat
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
+androidx-paging-compose = { module = "androidx.paging:paging-compose", version.ref = "pagingCompose" }
+androidx-paging-runtime-ktx = { module = "androidx.paging:paging-runtime-ktx", version.ref = "pagingRuntimeKtx" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilCompose" }
 converter-kotlinx-serialization = { module = "com.squareup.retrofit2:converter-kotlinx-serialization", version.ref = "converterKotlinxSerialization" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
@@ -60,6 +64,7 @@ google-hilt-android = { group = "com.google.dagger", name = "hilt-android", vers
 google-hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+androidx-room-paging = { group = "androidx.room", name = "room-paging", version.ref = "room" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

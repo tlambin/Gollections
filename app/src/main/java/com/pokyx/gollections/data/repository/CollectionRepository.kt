@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.pokyx.gollections.data.ItemProperty
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 
 @Singleton
 class CollectionRepository @Inject constructor(
@@ -58,4 +61,30 @@ class CollectionRepository @Inject constructor(
     suspend fun insertTag(tag: Tag) = tagDao.insertTag(tag)
     suspend fun deleteTag(tag: Tag) = tagDao.deleteTag(tag)
     suspend fun renameTag(collectionId: Long, oldName: String, newName: String) = tagDao.renameTag(collectionId, oldName, newName)
+
+    fun getPagedItemsWithFilters(
+        collectionId: Long,
+        searchQuery: String,
+        tagFilter: String,
+        sortOption: String
+    ): kotlinx.coroutines.flow.Flow<PagingData<com.pokyx.gollections.data.tag.CollectionItemWithTags>> {
+
+        // Sécurisation de la recherche FTS pour éviter les crashs
+        val sanitizedQuery = searchQuery.replace(Regex("[^\\w\\sÀ-ÿ]"), "").trim()
+
+        return Pager(
+            config = PagingConfig(
+                pageSize = 20,          // Nombre d'objets chargés à la fois
+                enablePlaceholders = false
+            ),
+            pagingSourceFactory = {
+                collectionItemDao.getPagedItems(
+                    collectionId = collectionId,
+                    searchQuery = sanitizedQuery,
+                    tagFilter = tagFilter,
+                    sortOption = sortOption
+                )
+            }
+        ).flow
+    }
 }

@@ -19,6 +19,13 @@ import com.pokyx.gollections.data.repository.BarcodeRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 
 @HiltViewModel
 class CollectionDetailViewModel @Inject constructor(
@@ -108,5 +115,27 @@ class CollectionDetailViewModel @Inject constructor(
                 onResult(null, null, exceptionMsg)
             }
         }
+    }
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
+
+    private val _tagFilter = MutableStateFlow("Toutes")
+    val tagFilter = _tagFilter.asStateFlow()
+
+    private val _sortOption = MutableStateFlow("NAME_ASC")
+    val sortOption = _sortOption.asStateFlow()
+
+    fun updateSearchQuery(query: String) { _searchQuery.value = query }
+    fun updateTagFilter(tag: String) { _tagFilter.value = tag }
+    fun updateSortOption(option: String) { _sortOption.value = option }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun getPagedItems(collectionId: Long): Flow<PagingData<com.pokyx.gollections.data.tag.CollectionItemWithTags>> {
+        return combine(_searchQuery, _tagFilter, _sortOption) { query, tag, sort ->
+            Triple(query, tag, sort)
+        }.flatMapLatest { (query, tag, sort) ->
+            repository.getPagedItemsWithFilters(collectionId, query, tag, sort)
+        }.cachedIn(viewModelScope)
     }
 }

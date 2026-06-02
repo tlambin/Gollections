@@ -68,4 +68,30 @@ interface CollectionItemDao {
         WHERE collection_items_fts MATCH :searchQuery
     """)
     fun searchItemsWithTagsFts(searchQuery: String): kotlinx.coroutines.flow.Flow<List<com.pokyx.gollections.data.tag.CollectionItemWithTags>>
+
+    @Transaction
+    @Query("""
+        SELECT ci.* FROM collection_items ci
+        LEFT JOIN collection_items_fts fts ON ci.id = fts.rowid
+        WHERE ci.collectionId = :collectionId
+        AND (:searchQuery = '' OR fts.title MATCH :searchQuery || '*')
+        AND (:tagFilter = 'Toutes' OR ci.id IN (
+            SELECT itemId FROM collection_item_tag_cross_ref 
+            INNER JOIN Tag ON collection_item_tag_cross_ref.tagId = Tag.id 
+            WHERE Tag.name = :tagFilter
+        ))
+        ORDER BY 
+            CASE WHEN :sortOption = 'NAME_ASC' THEN ci.title END ASC,
+            CASE WHEN :sortOption = 'NAME_DESC' THEN ci.title END DESC,
+            CASE WHEN :sortOption = 'PRICE_ASC' THEN CAST(REPLACE(ci.price, ',', '.') AS REAL) END ASC,
+            CASE WHEN :sortOption = 'PRICE_DESC' THEN CAST(REPLACE(ci.price, ',', '.') AS REAL) END DESC,
+            CASE WHEN :sortOption = 'DATE_ASC' THEN substr(ci.purchaseDate, 7, 4) || substr(ci.purchaseDate, 4, 2) || substr(ci.purchaseDate, 1, 2) END ASC,
+            CASE WHEN :sortOption = 'DATE_DESC' THEN substr(ci.purchaseDate, 7, 4) || substr(ci.purchaseDate, 4, 2) || substr(ci.purchaseDate, 1, 2) END DESC
+    """)
+    fun getPagedItems(
+        collectionId: Long,
+        searchQuery: String,
+        tagFilter: String,
+        sortOption: String
+    ): androidx.paging.PagingSource<Int, com.pokyx.gollections.data.tag.CollectionItemWithTags>
 }
