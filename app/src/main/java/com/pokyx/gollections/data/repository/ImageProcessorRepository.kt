@@ -23,7 +23,7 @@ import kotlin.math.min
 
 @Singleton
 class ImageProcessorRepository @Inject constructor(
-    @ApplicationContext private val context: Context // <-- MODIFICATION: Injection propre, plus besoin de redéclarer la variable
+    @ApplicationContext private val context: Context
 ) {
 
     suspend fun processImage(sourceUri: Uri, shouldCutout: Boolean): Uri? = withContext(Dispatchers.IO) {
@@ -76,7 +76,6 @@ class ImageProcessorRepository @Inject constructor(
     }
 
     private fun saveBitmapToInternalStorage(bitmap: Bitmap, isTransparent: Boolean): Uri {
-        // <-- MODIFICATION: Utilisation de UUID pour garantir l'unicité
         val file = File(context.filesDir, "gollections_img_${UUID.randomUUID()}.webp")
         FileOutputStream(file).use { out ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -92,5 +91,21 @@ class ImageProcessorRepository @Inject constructor(
             }
         }
         return Uri.fromFile(file)
+    }
+
+    fun deleteImageFile(imageUrl: String) {
+        try {
+            if (imageUrl.startsWith("file://") && imageUrl.contains("gollections_img_")) {
+                val path = Uri.parse(imageUrl).path
+                if (path != null) {
+                    val file = File(path)
+                    if (file.exists()) {
+                        file.delete()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }

@@ -85,7 +85,6 @@ fun CollectionDetailScreen(
 ) {
     val context = LocalContext.current
     val allCollections by viewModel.allCollections.collectAsStateWithLifecycle()
-    val allItemsWithTags by viewModel.allItemsWithTags.collectAsStateWithLifecycle()
 
     val currentCollection = allCollections.find { it.id == collectionId }
     val collectionName = currentCollection?.name ?: ""
@@ -124,26 +123,9 @@ fun CollectionDetailScreen(
 
     val tagsList = remember(dbTags) { listOf("Toutes") + dbTags.map { it.name }.distinct() }
 
-    val totalCount = remember(collectionId, allCollections, allItemsWithTags) {
-        val descendantIds = mutableListOf(collectionId)
-        var currentLevel = allCollections.filter { it.parentId == collectionId }.map { it.id }
-        while (currentLevel.isNotEmpty()) { descendantIds.addAll(currentLevel); currentLevel = allCollections.filter { it.parentId in currentLevel }.map { it.id } }
-        allItemsWithTags.count { it.item.collectionId in descendantIds }
-    }
-
-    val totalValue = remember(collectionId, allCollections, allItemsWithTags) {
-        val descendantIds = mutableListOf(collectionId)
-        var currentLevel = allCollections.filter { it.parentId == collectionId }.map { it.id }
-        while (currentLevel.isNotEmpty()) {
-            descendantIds.addAll(currentLevel)
-            currentLevel = allCollections.filter { it.parentId in currentLevel }.map { it.id }
-        }
-        allItemsWithTags
-            .filter { it.item.collectionId in descendantIds }
-            .mapNotNull { it.item.price.replace(",", ".").toDoubleOrNull() }
-            .sum()
-    }
-
+    // NOUVEAU : Observer les StateFlow optimisés depuis le ViewModel
+    val totalCount by remember(collectionId) { viewModel.getTotalCount(collectionId) }.collectAsStateWithLifecycle(initialValue = 0)
+    val totalValue by remember(collectionId) { viewModel.getTotalValue(collectionId) }.collectAsStateWithLifecycle(initialValue = 0.0)
     val formattedValue = remember(totalValue) { NumberFormat.getCurrencyInstance().format(totalValue) }
 
     val filteredAndSortedItems = remember(allCollectionItemsWithTags, searchQuery, selectedTagFilter, sortOption) {
@@ -185,6 +167,10 @@ fun CollectionDetailScreen(
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    val errorScanLimitText = stringResource(R.string.error_scan_limit)
+    val errorScanNotFoundText = stringResource(R.string.error_scan_not_found)
+    val errorScanSearchingText = stringResource(R.string.error_scan_searching)
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -246,19 +232,20 @@ fun CollectionDetailScreen(
                         modifier = Modifier.padding(bottom = 16.dp)
                     ) {
                         MultiFabItem(
-                            text = "Scanner",
+                            text = stringResource(R.string.action_scan),
                             icon = CameraIcon,
                             onClick = {
                                 isFabExpanded = false
                                 val barcodeScanner = BarcodeScanner(context)
                                 barcodeScanner.startScan(
                                     onScanSuccess = { barcode ->
-                                        Toast.makeText(context, "Recherche de l'objet...", Toast.LENGTH_SHORT).show()
-                                        viewModel.fetchItemFromBarcode(barcode) { title, imageUrl ->
+                                        Toast.makeText(context, errorScanSearchingText, Toast.LENGTH_SHORT).show()
+                                        viewModel.fetchItemFromBarcode(barcode) { title, imageUrl, errorMsg ->
                                             if (title != null) {
-                                                onAddItemClick(title, imageUrl) // Ouvre l'écran d'ajout pré-rempli
+                                                onAddItemClick(title, imageUrl)
                                             } else {
-                                                Toast.makeText(context, "Objet introuvable", Toast.LENGTH_LONG).show()
+                                                val toastMsg = if (errorMsg == "error_scan_limit") errorScanLimitText else errorScanNotFoundText
+                                                Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
                                             }
                                         }
                                     },
@@ -269,14 +256,14 @@ fun CollectionDetailScreen(
                             }
                         )
                         MultiFabItem(
-                            text = "Créer une collection",
+                            text = stringResource(R.string.action_create_collection),
                             icon = FolderIcon,
                             onClick = { isFabExpanded = false; showAddSubCollectionDialog = true }
                         )
                         MultiFabItem(
-                            text = "Ajouter un objet",
+                            text = stringResource(R.string.action_add_item),
                             icon = Icons.Default.Add,
-                            onClick = { isFabExpanded = false; onAddItemClick(null, null) } // <-- Ajoute les null ici
+                            onClick = { isFabExpanded = false; onAddItemClick(null, null) }
                         )
                     }
                 }
@@ -410,4 +397,4 @@ fun CollectionDetailScreen(
     if (showDeleteCollectionDialog) AlertDialog(onDismissRequest = { showDeleteCollectionDialog = false }, title = { Text(stringResource(R.string.delete_item_title).replace("l\'objet", "la collection")) }, text = { Text(stringResource(R.string.delete_folder_warning)) }, confirmButton = { Button(onClick = { viewModel.deleteCollection(collectionId); showDeleteCollectionDialog = false; onBackClick() }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.delete_folder).replace(" la collection", "")) } }, dismissButton = { TextButton(onClick = { showDeleteCollectionDialog = false }) { Text(stringResource(R.string.cancel)) } })
 }
 
-// Conserve les fonctions MultiFabItem, SubCollectionSmallCard, CustomTagChip, et les Icons personnalisés que tu avais déjà
+// Les fonctions MultiFabItem, SubCollectionSmallCard, CustomTagChip, et les Icons personnalisés que tu avais déjà à la fin du fichier sont conservées à l'identique.

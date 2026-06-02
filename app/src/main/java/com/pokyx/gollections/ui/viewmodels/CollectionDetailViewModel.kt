@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import com.pokyx.gollections.data.repository.BarcodeRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 
 @HiltViewModel
 class CollectionDetailViewModel @Inject constructor(
@@ -31,8 +34,46 @@ class CollectionDetailViewModel @Inject constructor(
     fun getItemsByCollectionWithTags(collectionId: Long): Flow<List<CollectionItemWithTags>> = repository.getItemsByCollectionWithTags(collectionId)
     suspend fun getCollectionById(id: Long): Collection? = repository.getCollectionById(id)
 
+    // NOUVEAU : Calculs déportés en arrière-plan (Dispatchers.Default)
+    fun getTotalCount(collectionId: Long): Flow<Int> = combine(allCollections, allItemsWithTags) { collections, items ->
+        val descendantIds = mutableListOf(collectionId)
+        var currentLevel = collections.filter { it.parentId == collectionId }.map { it.id }
+        while (currentLevel.isNotEmpty()) { descendantIds.addAll(currentLevel); currentLevel = collections.filter { it.parentId in currentLevel }.map { it.id } }
+        items.count { it.item.collectionId in descendantIds }
+    }.flowOn(Dispatchers.Default)
+
+    fun getTotalValue(collectionId: Long): Flow<Double> = combine(allCollections, allItemsWithTags) { collections, items ->
+        val descendantIds = mutableListOf(collectionId)
+        var currentLevel = collections.filter { it.parentId == collectionId }.map { it.id }
+        while (currentLevel.isNotEmpty()) {
+            descendantIds.addAll(currentLevel)
+            currentLevel = collections.filter { it.parentId in currentLevel }.map { it.id }
+        }
+        items
+            .filter { it.item.collectionId in descendantIds }
+            .mapNotNull { it.item.price.replace(",", ".").toDoubleOrNull() }
+            .sum()
+    }.flowOn(Dispatchers.Default)
+
     fun insertCollection(name: String, cover: String = "", parentId: Long? = null) { viewModelScope.launch { repository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) } }
-    fun deleteCollection(collectionId: Long) { viewModelScope.launch { repository.deleteCollectionById(collectionId) } }
+
+    // MODIFIE : Pour supprimer aussi les images associées si on supprime toute la collection
+    fun deleteCollection(collectionId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Purger les fichiers images avant de détruire la base
+            val descendantIds = mutableListOf(collectionId)
+            var currentLevel = allCollections.value.filter { it.parentId == collectionId }.map { it.id }
+            while (currentLevel.isNotEmpty()) { descendantIds.addAll(currentLevel); currentLevel = allCollections.value.filter { it.parentId in currentLevel }.map { it.id } }
+
+            val itemsToDelete = allItemsWithTags.value.filter { it.item.collectionId in descendantIds }
+            itemsToDelete.forEach {
+                if (it.item.imageUrl.isNotBlank()) imageProcessor.deleteImageFile(it.item.imageUrl)
+            }
+
+            repository.deleteCollectionById(collectionId)
+        }
+    }
+
     fun renameCollection(id: Long, newName: String) { viewModelScope.launch { repository.renameCollection(id, newName) } }
     fun updateCollectionParent(id: Long, newParentId: Long?) { viewModelScope.launch { repository.updateParentId(id, newParentId) } }
     fun updateCollection(collection: Collection) { viewModelScope.launch { repository.updateCollection(collection) } }
@@ -56,11 +97,16 @@ class CollectionDetailViewModel @Inject constructor(
         }
     }
 
-    fun fetchItemFromBarcode(barcode: String, onResult: (title: String?, imageUrl: String?) -> Unit) {
+    fun fetchItemFromBarcode(barcode: String, onResult: (title: String?, imageUrl: String?, errorMsg: String?) -> Unit) {
         viewModelScope.launch {
             val result = barcodeRepository.getInfoFromBarcode(barcode)
-            val info = result.getOrNull()
-            onResult(info?.title, info?.imageUrl)
+            if (result.isSuccess) {
+                val info = result.getOrNull()
+                onResult(info?.title, info?.imageUrl, null)
+            } else {
+                val exceptionMsg = result.exceptionOrNull()?.message
+                onResult(null, null, exceptionMsg)
+            }
         }
     }
 }

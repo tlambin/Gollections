@@ -11,7 +11,8 @@ import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
 @Database(
     entities = [CollectionItem::class, Collection::class, Tag::class, CollectionItemTagCrossRef::class, ItemProperty::class],
     version = 13,
-    exportSchema = true
+    exportSchema = true,
+    autoMigrations = [] // Prêt pour les futures migrations
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -29,9 +30,8 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "gollections_database"
-                )
-                    .fallbackToDestructiveMigration(dropAllTables = true)
-                    .build()
+                ).build()
+
                 INSTANCE = instance
                 instance
             }

@@ -105,4 +105,11 @@
     <string name="sort_price_desc">Prix (Décroissant)</string>
     <string name="sort_date_desc">Date d\'achat (Récent)</string>
     <string name="sort_date_asc">Date d\'achat (Ancien)</string>
+
+    <string name="action_scan">Scanner un code-barres</string>
+    <string name="action_create_collection">Créer une collection</string>
+    <string name="action_add_item">Ajouter un objet</string>
+    <string name="error_scan_limit">Limite de scan atteinte. Veuillez patienter un peu.</string>
+    <string name="error_scan_not_found">Produit introuvable dans la base de données.</string>
+    <string name="error_scan_searching">Recherche de l\'objet en cours...</string>
 </resources>

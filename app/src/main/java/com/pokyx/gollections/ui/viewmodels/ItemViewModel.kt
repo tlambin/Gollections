@@ -12,11 +12,13 @@ import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
 import com.pokyx.gollections.data.tag.Tag
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -35,8 +37,8 @@ data class ItemFormState(
     val imageUrl: String = "",
     val selectedPath: List<Long> = emptyList(),
     val selectedTags: Set<Tag> = emptySet(),
-    val itemType: String = "OTHER", // NOUVEAU
-    val properties: Map<String, String> = emptyMap() // NOUVEAU : Stocke { "Réalisateur": "Nolan", ... }
+    val itemType: String = "OTHER",
+    val properties: Map<String, String> = emptyMap()
 )
 
 @HiltViewModel
@@ -102,7 +104,6 @@ class ItemViewModel @Inject constructor(
         _formState.update(transform)
     }
 
-    // Génère les champs par défaut quand on change de type d'objet
     fun changeItemType(newType: String) {
         val defaultProps = when (newType) {
             "MOVIE" -> mapOf("Réalisateur" to "", "Date de sortie" to "", "Synopsis" to "")
@@ -132,7 +133,13 @@ class ItemViewModel @Inject constructor(
     }
 
     fun updateItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
+            // NOUVEAU : Suppression de l'ancienne image si elle a été modifiée
+            val oldItem = repository.getItemByIdWithTags(item.id).firstOrNull()?.item
+            if (oldItem != null && oldItem.imageUrl != item.imageUrl && oldItem.imageUrl.isNotBlank()) {
+                imageProcessor.deleteImageFile(oldItem.imageUrl)
+            }
+
             repository.updateItem(item)
             repository.clearTagsForItem(item.id)
             repository.clearPropertiesForItem(item.id)
@@ -147,9 +154,17 @@ class ItemViewModel @Inject constructor(
         }
     }
 
-    fun deleteItem(item: CollectionItem) { viewModelScope.launch { repository.deleteItem(item) } }
-    fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = repository.getItemByIdWithTags(id)
+    // NOUVEAU : Suppression de l'image liée lors de la suppression de l'objet
+    fun deleteItem(item: CollectionItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteItem(item)
+            if (item.imageUrl.isNotBlank()) {
+                imageProcessor.deleteImageFile(item.imageUrl)
+            }
+        }
+    }
 
+    fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = repository.getItemByIdWithTags(id)
     fun getTagsForCollections(collectionIds: List<Long>): Flow<List<Tag>> = if (collectionIds.isEmpty()) kotlinx.coroutines.flow.flowOf(emptyList()) else repository.getTagsByCollectionIds(collectionIds)
     fun insertTag(name: String, collectionId: Long) { viewModelScope.launch { repository.insertTag(Tag(name = name, collectionId = collectionId)) } }
 

@@ -23,8 +23,10 @@ class BarcodeRepository @Inject constructor(
                         imageUrl = item.images.firstOrNull() ?: ""
                     )
                 )
+            } else if (response.code == "TOO_FAST" || response.code == "EXCEEDED") {
+                Result.failure(Exception("error_scan_limit")) // Identifiant intercepté par la vue
             } else {
-                Result.failure(Exception("Produit non trouvé dans la base de données"))
+                Result.failure(Exception("error_scan_not_found"))
             }
         } catch (e: Exception) {
             Result.failure(e)
