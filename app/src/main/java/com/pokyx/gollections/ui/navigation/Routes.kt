@@ -6,6 +6,9 @@ import kotlinx.serialization.Serializable
 object DashboardRoute
 
 @Serializable
+object ProfileRoute
+
+@Serializable
 data class CollectionDetailRoute(val collectionId: Long)
 
 @Serializable

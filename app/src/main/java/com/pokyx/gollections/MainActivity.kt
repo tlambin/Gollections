@@ -22,31 +22,56 @@ import com.pokyx.gollections.ui.navigation.CollectionDetailRoute
 import com.pokyx.gollections.ui.navigation.DashboardRoute
 import com.pokyx.gollections.ui.navigation.EditItemRoute
 import com.pokyx.gollections.ui.navigation.ItemDetailRoute
+import com.pokyx.gollections.ui.navigation.ProfileRoute // <-- IMPORT AJOUTÉ
 import com.pokyx.gollections.ui.screens.AddItemScreen
 import com.pokyx.gollections.ui.screens.CollectionDetailScreen
 import com.pokyx.gollections.ui.screens.DashboardScreen
 import com.pokyx.gollections.ui.screens.EditItemScreen
 import com.pokyx.gollections.ui.screens.ItemDetailScreen
+import com.pokyx.gollections.ui.screens.ProfileScreen // <-- IMPORT AJOUTÉ
 import com.pokyx.gollections.ui.theme.GollectionsTheme
 import com.pokyx.gollections.ui.viewmodels.CollectionDetailViewModel
 import com.pokyx.gollections.ui.viewmodels.DashboardViewModel
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.isSystemInDarkTheme
+import com.pokyx.gollections.data.preferences.PreferencesManager
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var preferencesManager: PreferencesManager // <-- On injecte les préférences
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         setContent {
-            GollectionsTheme {
+            // On observe le thème et les couleurs
+            val theme by preferencesManager.themeFlow.collectAsState(initial = "Système")
+            val dynamicColor by preferencesManager.dynamicColorsFlow.collectAsState(initial = true)
+
+            // On déduit si on doit être en mode sombre
+            val darkTheme = when (theme) {
+                "Sombre" -> true
+                "Clair" -> false
+                else -> isSystemInDarkTheme()
+            }
+
+            // On applique tes choix au thème Compose
+            GollectionsTheme(
+                darkTheme = darkTheme,
+                dynamicColor = dynamicColor
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
-
                     NavHost(
                         navController = navController,
                         startDestination = DashboardRoute,
@@ -64,7 +89,17 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onAddItemClick = { title, imageUrl ->
                                     navController.navigate(AddItemRoute(scannedTitle = title, scannedImageUrl = imageUrl))
+                                },
+                                onProfileClick = { // <-- PARAMÈTRE AJOUTÉ ICI
+                                    navController.navigate(ProfileRoute)
                                 }
+                            )
+                        }
+
+                        // <-- NOUVEL ÉCRAN AJOUTÉ ICI
+                        composable<ProfileRoute> {
+                            ProfileScreen(
+                                onBackClick = { navController.popBackStack() }
                             )
                         }
 
@@ -77,7 +112,7 @@ class MainActivity : ComponentActivity() {
                                 viewModel = viewModel,
                                 onBackClick = { navController.popBackStack() },
                                 onItemClick = { itemId ->
-                                    navController.navigate(ItemDetailRoute(itemId = itemId)) // <-- RESTAURÉ ICI
+                                    navController.navigate(ItemDetailRoute(itemId = itemId))
                                 },
                                 onAddItemClick = { title, imageUrl ->
                                     navController.navigate(AddItemRoute(

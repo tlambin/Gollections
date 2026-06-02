@@ -45,12 +45,14 @@ import com.pokyx.gollections.utils.BarcodeScanner
 import com.pokyx.gollections.utils.getEmojiForCollection
 import com.pokyx.gollections.utils.getUnitForCollection
 import com.pokyx.gollections.ui.components.*
+import androidx.compose.material.icons.filled.Person
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     onCollectionClick: (Long) -> Unit,
     onAddItemClick: (title: String?, imageUrl: String?) -> Unit,
+    onProfileClick: () -> Unit,
     viewModel: DashboardViewModel
 ) {
     val context = LocalContext.current
@@ -71,6 +73,16 @@ fun DashboardScreen(
         topBar = {
             LargeTopAppBar(
                 title = { Text(text = stringResource(R.string.app_name), fontWeight = FontWeight.Bold) },
+                actions = { // <-- NOUVELLE SECTION ACTIONS
+                    IconButton(
+                        onClick = onProfileClick,
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = "Profil")
+                    }
+                },
                 scrollBehavior = scrollBehavior,
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
