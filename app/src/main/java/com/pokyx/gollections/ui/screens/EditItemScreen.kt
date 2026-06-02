@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.data.CollectionItem
+import com.pokyx.gollections.data.ItemType // <-- Import ajouté
 import com.pokyx.gollections.data.tag.Tag
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
 import com.pokyx.gollections.utils.AddTagDialog
@@ -49,7 +50,7 @@ import java.time.format.DateTimeFormatter
 fun EditItemScreen(
     itemId: Int,
     onBackClick: () -> Unit,
-    onSaveClick: (CollectionItem, List<Tag>, Map<String, String>) -> Unit, // <-- MISE À JOUR ICI
+    onSaveClick: (CollectionItem, List<Tag>, Map<String, String>) -> Unit,
     viewModel: ItemViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -94,11 +95,6 @@ fun EditItemScreen(
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) { pendingImageUri = uri; showDetourageConfirmation = true } }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success -> if (success && tempPhotoUri != null) { pendingImageUri = tempPhotoUri; showDetourageConfirmation = true } }
 
-    val itemTypes = listOf(
-        "MOVIE" to "🎬 Film", "BOOK" to "📚 Livre",
-        "GAME" to "🎮 Jeu", "MUSIC" to "🎵 Musique", "OTHER" to "📦 Autre"
-    )
-
     Scaffold(
         topBar = { TopAppBar(title = { Text(state.title.ifBlank { stringResource(R.string.title_edit_item) }, fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Default.Close, contentDescription = null) } }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) }
     ) { paddingValues ->
@@ -112,11 +108,12 @@ fun EditItemScreen(
 
             Text("Type d'objet", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                itemTypes.forEach { (typeId, label) ->
+                // <-- Modification ici pour l'Enum
+                ItemType.values().forEach { type ->
                     FilterChip(
-                        selected = state.itemType == typeId,
-                        onClick = { viewModel.changeItemType(typeId) },
-                        label = { Text(label) }
+                        selected = state.itemType == type,
+                        onClick = { viewModel.changeItemType(type) },
+                        label = { Text("${type.emoji} ${type.label}") }
                     )
                 }
             }
@@ -237,7 +234,7 @@ fun EditItemScreen(
                             isLoaned = state.isLoaned,
                             loanTo = if (state.isLoaned) state.loanTo.trim() else "",
                             loanDate = if (state.isLoaned) state.loanDate else "",
-                            itemType = state.itemType // <-- AJOUT
+                            itemType = state.itemType
                         )
                         onSaveClick(updatedItem, state.selectedTags.toList(), state.properties)
                     }

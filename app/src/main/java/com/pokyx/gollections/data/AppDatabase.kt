@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import com.pokyx.gollections.data.tag.Tag
 import com.pokyx.gollections.data.tag.TagDao
 import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
@@ -14,6 +15,7 @@ import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
     exportSchema = true,
     autoMigrations = [] // Prêt pour les futures migrations
 )
+@TypeConverters(Converters::class) // <-- Ajouté ici
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun collectionItemDao(): CollectionItemDao

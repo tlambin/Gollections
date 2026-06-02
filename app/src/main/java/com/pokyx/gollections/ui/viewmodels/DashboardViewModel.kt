@@ -57,11 +57,16 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun fetchItemFromBarcode(barcode: String, onResult: (title: String?, imageUrl: String?) -> Unit) {
+    fun fetchItemFromBarcode(barcode: String, onResult: (title: String?, imageUrl: String?, errorMsg: String?) -> Unit) {
         viewModelScope.launch {
             val result = barcodeRepository.getInfoFromBarcode(barcode)
-            val info = result.getOrNull()
-            onResult(info?.title, info?.imageUrl)
+            if (result.isSuccess) {
+                val info = result.getOrNull()
+                onResult(info?.title, info?.imageUrl, null)
+            } else {
+                val exceptionMsg = result.exceptionOrNull()?.message
+                onResult(null, null, exceptionMsg)
+            }
         }
     }
 }

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.data.ItemProperty
+import com.pokyx.gollections.data.ItemType // <-- Import ajouté
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ImageProcessorRepository
 import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
@@ -37,7 +38,7 @@ data class ItemFormState(
     val imageUrl: String = "",
     val selectedPath: List<Long> = emptyList(),
     val selectedTags: Set<Tag> = emptySet(),
-    val itemType: String = "OTHER",
+    val itemType: ItemType = ItemType.OTHER, // <-- Modifié ici
     val properties: Map<String, String> = emptyMap()
 )
 
@@ -95,7 +96,7 @@ class ItemViewModel @Inject constructor(
             imageUrl = currentItem.imageUrl,
             selectedPath = path,
             selectedTags = itemWithTags.tags.toSet(),
-            itemType = currentItem.itemType,
+            itemType = currentItem.itemType, // Plus besoin de conversion !
             properties = propsMap
         )
     }
@@ -104,13 +105,13 @@ class ItemViewModel @Inject constructor(
         _formState.update(transform)
     }
 
-    fun changeItemType(newType: String) {
+    fun changeItemType(newType: ItemType) { // <-- Modifié ici
         val defaultProps = when (newType) {
-            "MOVIE" -> mapOf("Réalisateur" to "", "Date de sortie" to "", "Synopsis" to "")
-            "BOOK" -> mapOf("Auteur" to "", "Date de publication" to "", "Résumé" to "", "Nombre de pages" to "")
-            "GAME" -> mapOf("Studio" to "", "Plateforme" to "", "Date de sortie" to "", "Description" to "")
-            "MUSIC" -> mapOf("Artiste" to "", "Album" to "", "Date de sortie" to "")
-            else -> emptyMap()
+            ItemType.MOVIE -> mapOf("Réalisateur" to "", "Date de sortie" to "", "Synopsis" to "")
+            ItemType.BOOK -> mapOf("Auteur" to "", "Date de publication" to "", "Résumé" to "", "Nombre de pages" to "")
+            ItemType.GAME -> mapOf("Studio" to "", "Plateforme" to "", "Date de sortie" to "", "Description" to "")
+            ItemType.MUSIC -> mapOf("Artiste" to "", "Album" to "", "Date de sortie" to "")
+            ItemType.OTHER -> emptyMap()
         }
         updateForm { it.copy(itemType = newType, properties = defaultProps) }
     }
@@ -134,7 +135,6 @@ class ItemViewModel @Inject constructor(
 
     fun updateItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) {
         viewModelScope.launch(Dispatchers.IO) {
-            // NOUVEAU : Suppression de l'ancienne image si elle a été modifiée
             val oldItem = repository.getItemByIdWithTags(item.id).firstOrNull()?.item
             if (oldItem != null && oldItem.imageUrl != item.imageUrl && oldItem.imageUrl.isNotBlank()) {
                 imageProcessor.deleteImageFile(oldItem.imageUrl)
@@ -154,7 +154,6 @@ class ItemViewModel @Inject constructor(
         }
     }
 
-    // NOUVEAU : Suppression de l'image liée lors de la suppression de l'objet
     fun deleteItem(item: CollectionItem) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteItem(item)

@@ -88,19 +88,20 @@ fun DashboardScreen(
                         modifier = Modifier.padding(bottom = 16.dp)
                     ) {
                         MultiFabItem(
-                            text = "Scanner",
+                            text = stringResource(R.string.action_scan), // <-- Remplacé
                             icon = CameraIcon,
                             onClick = {
                                 isFabExpanded = false
                                 val barcodeScanner = BarcodeScanner(context)
                                 barcodeScanner.startScan(
                                     onScanSuccess = { barcode ->
-                                        Toast.makeText(context, "Recherche de l'objet...", Toast.LENGTH_SHORT).show()
-                                        viewModel.fetchItemFromBarcode(barcode) { title, imageUrl ->
+                                        Toast.makeText(context, context.getString(R.string.error_scan_searching), Toast.LENGTH_SHORT).show() // <-- Remplacé
+                                        viewModel.fetchItemFromBarcode(barcode) { title, imageUrl, errorMsg ->
                                             if (title != null) {
-                                                onAddItemClick(title, imageUrl) // Ouvre l'écran d'ajout pré-rempli
+                                                onAddItemClick(title, imageUrl)
                                             } else {
-                                                Toast.makeText(context, "Objet introuvable", Toast.LENGTH_LONG).show()
+                                                val toastMsg = if (errorMsg == "error_scan_limit") context.getString(R.string.error_scan_limit) else context.getString(R.string.error_scan_not_found)
+                                                Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show() // <-- Remplacé
                                             }
                                         }
                                     },
@@ -111,14 +112,14 @@ fun DashboardScreen(
                             }
                         )
                         MultiFabItem(
-                            text = "Créer une collection",
+                            text = stringResource(R.string.action_create_collection), // <-- Remplacé
                             icon = FolderIcon,
                             onClick = { isFabExpanded = false; showAddCollectionDialog = true }
                         )
                         MultiFabItem(
-                            text = "Ajouter un objet",
+                            text = stringResource(R.string.action_add_item), // <-- Remplacé
                             icon = Icons.Default.Add,
-                            onClick = { isFabExpanded = false; onAddItemClick(null, null) } // <-- Ajoute les null ici
+                            onClick = { isFabExpanded = false; onAddItemClick(null, null) }
                         )
                     }
                 }
@@ -188,8 +189,6 @@ fun DashboardScreen(
     }
 }
 
-// Les fonctions StatsSlider, StatCardContent, CollectionsGrid, CollectionItemCard, CollectionCard et AddCollectionCard
-// restent inchangées, assure-toi juste qu'elles prennent 'viewModel: DashboardViewModel' si elles l'utilisaient.
 @Composable
 fun StatsSlider(totalItems: Int, totalCollections: Int, loanedItems: Int) {
     val pagerState = rememberPagerState(pageCount = { 3 })

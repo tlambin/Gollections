@@ -4,6 +4,23 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import androidx.room.TypeConverter
+
+enum class ItemType(val label: String, val emoji: String) {
+    MOVIE("Film", "🎬"),
+    BOOK("Livre", "📚"),
+    GAME("Jeu", "🎮"),
+    MUSIC("Musique", "🎵"),
+    OTHER("Autre", "📦")
+}
+
+class Converters {
+    @TypeConverter
+    fun toItemType(value: String): ItemType = try { enumValueOf<ItemType>(value) } catch (e: Exception) { ItemType.OTHER }
+
+    @TypeConverter
+    fun fromItemType(value: ItemType): String = value.name
+}
 
 @Entity(
     tableName = "collection_items",
@@ -31,5 +48,5 @@ data class CollectionItem(
     val status: String = "Non commencé",
     val comment: String = "",
     val imageUrl: String = "",
-    val itemType: String = "OTHER"
+    val itemType: ItemType = ItemType.OTHER // <-- Modifié ici
 )
