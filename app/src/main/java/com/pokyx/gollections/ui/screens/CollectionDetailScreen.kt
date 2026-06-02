@@ -2,7 +2,11 @@ package com.pokyx.gollections.ui.screens
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope // <-- NOUVEAU
+import androidx.compose.animation.ExperimentalSharedTransitionApi // <-- NOUVEAU
+import androidx.compose.animation.SharedTransitionScope // <-- NOUVEAU
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween // <-- NOUVEAU
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -73,9 +77,11 @@ import com.pokyx.gollections.ui.components.*
 
 enum class SortOption { NAME_ASC, NAME_DESC, PRICE_ASC, PRICE_DESC, DATE_DESC, DATE_ASC }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun CollectionDetailScreen(
+    animatedVisibilityScope: AnimatedVisibilityScope, // <-- NOUVEAU
+    sharedTransitionScope: SharedTransitionScope,     // <-- NOUVEAU
     collectionId: Long,
     viewModel: CollectionDetailViewModel,
     onBackClick: () -> Unit,
@@ -123,7 +129,6 @@ fun CollectionDetailScreen(
 
     val tagsList = remember(dbTags) { listOf("Toutes") + dbTags.map { it.name }.distinct() }
 
-    // NOUVEAU : Observer les StateFlow optimisés depuis le ViewModel
     val totalCount by remember(collectionId) { viewModel.getTotalCount(collectionId) }.collectAsStateWithLifecycle(initialValue = 0)
     val totalValue by remember(collectionId) { viewModel.getTotalValue(collectionId) }.collectAsStateWithLifecycle(initialValue = 0.0)
     val formattedValue = remember(totalValue) { NumberFormat.getCurrencyInstance().format(totalValue) }
@@ -355,8 +360,43 @@ fun CollectionDetailScreen(
                             val item = itemWithTags.item
                             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable { onItemClick(item.id) }, shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
                                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    if (item.imageUrl.isNotBlank()) AsyncImage(model = item.imageUrl, contentDescription = null, modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
-                                    else Box(modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) { val displayEmoji = if (collectionCover.isNotBlank() && !collectionCover.startsWith("file")) collectionCover else getEmojiForCollection(collectionName); Text(text = displayEmoji, fontSize = 24.sp) }
+
+                                    // --- ANIMATION AJOUTÉE ICI ---
+                                    with(sharedTransitionScope) {
+                                        if (item.imageUrl.isNotBlank()) {
+                                            AsyncImage(
+                                                model = item.imageUrl,
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .size(56.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .sharedElement(
+                                                        rememberSharedContentState(key = "item_image_${item.id}"), // <-- Plus de "state = "
+                                                        animatedVisibilityScope = animatedVisibilityScope,
+                                                        boundsTransform = { _, _ -> tween(durationMillis = 400) }
+                                                    ),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(56.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                    .sharedElement(
+                                                        rememberSharedContentState(key = "item_image_${item.id}"), // <-- Plus de "state = "
+                                                        animatedVisibilityScope = animatedVisibilityScope,
+                                                        boundsTransform = { _, _ -> tween(durationMillis = 400) }
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                val displayEmoji = if (collectionCover.isNotBlank() && !collectionCover.startsWith("file")) collectionCover else getEmojiForCollection(collectionName)
+                                                Text(text = displayEmoji, fontSize = 24.sp)
+                                            }
+                                        }
+                                    }
+                                    // ---------------------------------
+
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(text = item.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -396,5 +436,3 @@ fun CollectionDetailScreen(
     if (showRenameDialog) AlertDialog(onDismissRequest = { showRenameDialog = false }, title = { Text(stringResource(R.string.rename)) }, text = { OutlinedTextField(value = renameInput, onValueChange = { renameInput = it }, singleLine = true) }, confirmButton = { Button(onClick = { if (renameInput.isNotBlank()) { viewModel.renameCollection(collectionId, renameInput.trim()); showRenameDialog = false } }) { Text(stringResource(R.string.btn_save)) } }, dismissButton = { TextButton(onClick = { showRenameDialog = false }) { Text(stringResource(R.string.cancel)) } })
     if (showDeleteCollectionDialog) AlertDialog(onDismissRequest = { showDeleteCollectionDialog = false }, title = { Text(stringResource(R.string.delete_item_title).replace("l\'objet", "la collection")) }, text = { Text(stringResource(R.string.delete_folder_warning)) }, confirmButton = { Button(onClick = { viewModel.deleteCollection(collectionId); showDeleteCollectionDialog = false; onBackClick() }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.delete_folder).replace(" la collection", "")) } }, dismissButton = { TextButton(onClick = { showDeleteCollectionDialog = false }) { Text(stringResource(R.string.cancel)) } })
 }
-
-// Les fonctions MultiFabItem, SubCollectionSmallCard, CustomTagChip, et les Icons personnalisés que tu avais déjà à la fin du fichier sont conservées à l'identique.
