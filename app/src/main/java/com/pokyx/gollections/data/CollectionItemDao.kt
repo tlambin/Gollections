@@ -59,4 +59,13 @@ interface CollectionItemDao {
 
     @Query("DELETE FROM item_properties WHERE itemId = :itemId")
     suspend fun clearPropertiesForItem(itemId: Int)
+
+    // NOUVELLE RECHERCHE ULTRA-RAPIDE
+    @Transaction
+    @Query("""
+        SELECT collection_items.* FROM collection_items 
+        JOIN collection_items_fts ON collection_items.id = collection_items_fts.rowid 
+        WHERE collection_items_fts MATCH :searchQuery
+    """)
+    fun searchItemsWithTagsFts(searchQuery: String): kotlinx.coroutines.flow.Flow<List<com.pokyx.gollections.data.tag.CollectionItemWithTags>>
 }

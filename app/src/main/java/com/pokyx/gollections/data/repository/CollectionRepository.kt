@@ -34,7 +34,13 @@ class CollectionRepository @Inject constructor(
     // --- Items ---
     fun getAllItemsWithTags(): Flow<List<CollectionItemWithTags>> = collectionItemDao.getAllItemsWithTags()
     fun getItemsByCollectionWithTags(collectionId: Long): Flow<List<CollectionItemWithTags>> = collectionItemDao.getItemsByCollectionWithTags(collectionId)
-    fun searchItemsWithTags(searchQuery: String): Flow<List<CollectionItemWithTags>> = collectionItemDao.searchItemsWithTags(searchQuery)
+    fun searchItemsWithTags(query: String): kotlinx.coroutines.flow.Flow<List<com.pokyx.gollections.data.tag.CollectionItemWithTags>> {
+        // Enlève les caractères spéciaux qui pourraient faire crasher le moteur SQL, et ajoute l'astérisque
+        val sanitizedQuery = query.replace(Regex("[^\\w\\sÀ-ÿ]"), "").trim()
+        val ftsQuery = if (sanitizedQuery.isNotBlank()) "$sanitizedQuery*" else ""
+
+        return collectionItemDao.searchItemsWithTagsFts(ftsQuery)
+    }
     fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = collectionItemDao.getItemByIdWithTags(id)
     suspend fun insertItem(item: CollectionItem): Long = collectionItemDao.insertItem(item)
 

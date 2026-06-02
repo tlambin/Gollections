@@ -1,6 +1,7 @@
 package com.pokyx.gollections.data
 
 import android.content.Context
+import androidx.room.AutoMigration // <-- Import ajouté
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -10,18 +11,26 @@ import com.pokyx.gollections.data.tag.TagDao
 import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
 
 @Database(
-    entities = [CollectionItem::class, Collection::class, Tag::class, CollectionItemTagCrossRef::class, ItemProperty::class],
-    version = 13,
+    entities = [
+        CollectionItem::class,
+        Collection::class,
+        Tag::class,
+        CollectionItemTagCrossRef::class,
+        ItemProperty::class,
+        CollectionItemFts::class // <-- NOUVELLE ENTITÉ AJOUTÉE
+    ],
+    version = 14, // <-- PASSAGE À LA VERSION 14
     exportSchema = true,
-    autoMigrations = [] // Prêt pour les futures migrations
+    autoMigrations = [
+        AutoMigration(from = 13, to = 14) // <-- MIGRATION AUTOMATIQUE
+    ]
 )
-@TypeConverters(Converters::class) // <-- Ajouté ici
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun collectionItemDao(): CollectionItemDao
     abstract fun collectionDao(): CollectionDao
     abstract fun tagDao(): TagDao
-
     abstract fun backupDao(): BackupDao
 
     companion object {
@@ -35,7 +44,6 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "gollections_database"
                 ).build()
-
                 INSTANCE = instance
                 instance
             }
