@@ -27,4 +27,5 @@ object DatabaseModule {
 
     @Provides
     fun provideTagDao(database: AppDatabase): TagDao = database.tagDao()
+
 }

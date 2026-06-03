@@ -35,11 +35,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.data.CollectionItem
-import com.pokyx.gollections.data.ItemType // <-- Import ajouté
+import com.pokyx.gollections.data.ItemType
 import com.pokyx.gollections.data.tag.Tag
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
+import com.pokyx.gollections.ui.viewmodels.PropertyKeys // <-- NOUVEL IMPORT
 import com.pokyx.gollections.utils.AddTagDialog
 import com.pokyx.gollections.utils.getDynamicStatusOptions
+import com.pokyx.gollections.utils.getLocalizedPropertyLabel // <-- NOUVEL IMPORT
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -107,7 +109,6 @@ fun AddItemScreen(
 
             Text("Type d'objet", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // <-- Modification ici pour l'Enum
                 ItemType.values().forEach { type ->
                     FilterChip(
                         selected = state.itemType == type,
@@ -119,17 +120,19 @@ fun AddItemScreen(
 
             OutlinedTextField(value = state.title, onValueChange = { text -> viewModel.updateForm { it.copy(title = text) } }, label = { Text(stringResource(R.string.label_title)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
-            // AFFICHAGE DYNAMIQUE DES PROPRIETES
+            // CORRECTION DE L'AFFICHAGE DYNAMIQUE DES PROPRIETES
             if (state.properties.isNotEmpty()) {
                 Text("Informations spécifiques", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
-                state.properties.forEach { (label, value) ->
+                state.properties.forEach { (labelKey, value) ->
+                    // On utilise les clés techniques pour vérifier si le champ doit être multi-lignes
+                    val isMultiLine = labelKey in listOf(PropertyKeys.SYNOPSIS, PropertyKeys.SUMMARY, PropertyKeys.DESCRIPTION)
                     OutlinedTextField(
                         value = value,
-                        onValueChange = { newValue -> viewModel.updateProperty(label, newValue) },
-                        label = { Text(label) },
-                        modifier = Modifier.fillMaxWidth().then(if (label in listOf("Synopsis", "Résumé", "Description")) Modifier.height(120.dp) else Modifier),
-                        maxLines = if (label in listOf("Synopsis", "Résumé", "Description")) 5 else 1,
-                        singleLine = label !in listOf("Synopsis", "Résumé", "Description"),
+                        onValueChange = { newValue -> viewModel.updateProperty(labelKey, newValue) },
+                        label = { Text(getLocalizedPropertyLabel(labelKey)) }, // Traduction de la clé pour l'affichage
+                        modifier = Modifier.fillMaxWidth().then(if (isMultiLine) Modifier.height(120.dp) else Modifier),
+                        maxLines = if (isMultiLine) 5 else 1,
+                        singleLine = !isMultiLine,
                         shape = RoundedCornerShape(12.dp)
                     )
                 }

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ImageProcessorRepository
+import com.pokyx.gollections.data.repository.ItemRepository
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -24,16 +25,16 @@ import com.pokyx.gollections.data.repository.BarcodeRepository
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val repository: CollectionRepository,
+    private val collectionRepository: CollectionRepository,
+    private val itemRepository: ItemRepository,
     private val imageProcessor: ImageProcessorRepository,
     private val barcodeRepository: BarcodeRepository
 ) : ViewModel() {
 
-    val allItemsWithTags = repository.getAllItemsWithTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val collections = repository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val rootCollections = repository.getRootCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allItemsWithTags = itemRepository.getAllItemsWithTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val collections = collectionRepository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val rootCollections = collectionRepository.getRootCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // NOUVEAU : Pré-calcul asynchrone des compteurs d'objets pour chaque collection
     val collectionItemCounts = combine(collections, allItemsWithTags) { allColls, allItems ->
         val counts = mutableMapOf<Long, Int>()
         for (collection in allColls) {
@@ -41,24 +42,22 @@ class DashboardViewModel @Inject constructor(
         }
         counts
     }
-        .flowOn(Dispatchers.Default) // Exécute le calcul complexe hors du Thread UI
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
     val searchedItemsWithTags = _searchQuery.flatMapLatest { query ->
-        if (query.isBlank()) repository.getAllItemsWithTags() else repository.searchItemsWithTags(query)
+        if (query.isBlank()) itemRepository.getAllItemsWithTags() else itemRepository.searchItemsWithTags(query)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun updateSearchQuery(query: String) { _searchQuery.value = query }
 
     fun insertCollection(name: String, cover: String = "", parentId: Long? = null) {
-        // Ajout de Dispatchers.IO pour protéger les insertions BDD
-        viewModelScope.launch(Dispatchers.IO) { repository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) }
+        viewModelScope.launch(Dispatchers.IO) { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) }
     }
 
-    // Passée en PRIVÉE pour interdire son appel direct depuis Jetpack Compose
     private fun calculateRecursiveItemCount(collectionId: Long, allCollections: List<Collection>, allItems: List<CollectionItemWithTags>): Int {
         val descendantIds = mutableListOf(collectionId)
         var currentLevel = allCollections.filter { it.parentId == collectionId }.map { it.id }

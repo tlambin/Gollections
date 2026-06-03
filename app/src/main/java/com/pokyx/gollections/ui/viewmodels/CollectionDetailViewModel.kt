@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ImageProcessorRepository
+import com.pokyx.gollections.data.repository.ItemRepository
+import com.pokyx.gollections.data.repository.TagRepository
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
 import com.pokyx.gollections.data.tag.Tag
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,24 +26,27 @@ import androidx.paging.cachedIn
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 
 @HiltViewModel
 class CollectionDetailViewModel @Inject constructor(
-    private val repository: CollectionRepository,
+    private val collectionRepository: CollectionRepository,
+    private val itemRepository: ItemRepository,
+    private val tagRepository: TagRepository,
     private val imageProcessor: ImageProcessorRepository,
     private val barcodeRepository: BarcodeRepository
 ) : ViewModel() {
 
-    val allCollections = repository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val allItemsWithTags = repository.getAllItemsWithTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allCollections = collectionRepository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allItemsWithTags = itemRepository.getAllItemsWithTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun getSubCollections(parentId: Long): Flow<List<Collection>> = repository.getSubCollections(parentId)
-    fun getItemsByCollectionWithTags(collectionId: Long): Flow<List<CollectionItemWithTags>> = repository.getItemsByCollectionWithTags(collectionId)
-    suspend fun getCollectionById(id: Long): Collection? = repository.getCollectionById(id)
+    fun getSubCollections(parentId: Long): Flow<List<Collection>> = collectionRepository.getSubCollections(parentId)
 
-    // NOUVEAU : Calculs déportés en arrière-plan (Dispatchers.Default)
+    fun getItemsByCollectionWithTags(collectionId: Long): Flow<List<CollectionItemWithTags>> = itemRepository.getItemsByCollectionWithTags(collectionId)
+
+    suspend fun getCollectionById(id: Long): Collection? = collectionRepository.getCollectionById(id)
+
+    // Calculs déportés en arrière-plan (Dispatchers.Default)
     fun getTotalCount(collectionId: Long): Flow<Int> = combine(allCollections, allItemsWithTags) { collections, items ->
         val descendantIds = mutableListOf(collectionId)
         var currentLevel = collections.filter { it.parentId == collectionId }.map { it.id }
@@ -62,9 +67,11 @@ class CollectionDetailViewModel @Inject constructor(
             .sum()
     }.flowOn(Dispatchers.Default)
 
-    fun insertCollection(name: String, cover: String = "", parentId: Long? = null) { viewModelScope.launch { repository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) } }
+    fun insertCollection(name: String, cover: String = "", parentId: Long? = null) {
+        viewModelScope.launch(Dispatchers.IO) { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) }
+    }
 
-    // MODIFIE : Pour supprimer aussi les images associées si on supprime toute la collection
+    // Supprimer aussi les images associées si on supprime toute la collection
     fun deleteCollection(collectionId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             // Purger les fichiers images avant de détruire la base
@@ -77,13 +84,21 @@ class CollectionDetailViewModel @Inject constructor(
                 if (it.item.imageUrl.isNotBlank()) imageProcessor.deleteImageFile(it.item.imageUrl)
             }
 
-            repository.deleteCollectionById(collectionId)
+            collectionRepository.deleteCollectionById(collectionId)
         }
     }
 
-    fun renameCollection(id: Long, newName: String) { viewModelScope.launch { repository.renameCollection(id, newName) } }
-    fun updateCollectionParent(id: Long, newParentId: Long?) { viewModelScope.launch { repository.updateParentId(id, newParentId) } }
-    fun updateCollection(collection: Collection) { viewModelScope.launch { repository.updateCollection(collection) } }
+    fun renameCollection(id: Long, newName: String) {
+        viewModelScope.launch(Dispatchers.IO) { collectionRepository.renameCollection(id, newName) }
+    }
+
+    fun updateCollectionParent(id: Long, newParentId: Long?) {
+        viewModelScope.launch(Dispatchers.IO) { collectionRepository.updateParentId(id, newParentId) }
+    }
+
+    fun updateCollection(collection: Collection) {
+        viewModelScope.launch(Dispatchers.IO) { collectionRepository.updateCollection(collection) }
+    }
 
     fun getValidMoveDestinations(collectionId: Long, allCollections: List<Collection>): List<Collection> {
         val descendantIds = mutableListOf(collectionId)
@@ -92,10 +107,19 @@ class CollectionDetailViewModel @Inject constructor(
         return allCollections.filter { it.id !in descendantIds }
     }
 
-    fun getTagsForCollections(collectionIds: List<Long>): Flow<List<Tag>> = if (collectionIds.isEmpty()) flowOf(emptyList()) else repository.getTagsByCollectionIds(collectionIds)
-    fun insertTag(name: String, collectionId: Long) { viewModelScope.launch { repository.insertTag(Tag(name = name, collectionId = collectionId)) } }
-    fun deleteTag(tag: Tag) { viewModelScope.launch { repository.deleteTag(tag) } }
-    fun renameTag(collectionId: Long, oldName: String, newName: String) { viewModelScope.launch { repository.renameTag(collectionId, oldName, newName) } }
+    fun getTagsForCollections(collectionIds: List<Long>): Flow<List<Tag>> = if (collectionIds.isEmpty()) flowOf(emptyList()) else tagRepository.getTagsByCollectionIds(collectionIds)
+
+    fun insertTag(name: String, collectionId: Long) {
+        viewModelScope.launch(Dispatchers.IO) { tagRepository.insertTag(Tag(name = name, collectionId = collectionId)) }
+    }
+
+    fun deleteTag(tag: Tag) {
+        viewModelScope.launch(Dispatchers.IO) { tagRepository.deleteTag(tag) }
+    }
+
+    fun renameTag(collectionId: Long, oldName: String, newName: String) {
+        viewModelScope.launch(Dispatchers.IO) { tagRepository.renameTag(collectionId, oldName, newName) }
+    }
 
     fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
         viewModelScope.launch {
@@ -135,7 +159,7 @@ class CollectionDetailViewModel @Inject constructor(
         return combine(_searchQuery, _tagFilter, _sortOption) { query, tag, sort ->
             Triple(query, tag, sort)
         }.flatMapLatest { (query, tag, sort) ->
-            repository.getPagedItemsWithFilters(collectionId, query, tag, sort)
+            itemRepository.getPagedItemsWithFilters(collectionId, query, tag, sort)
         }.cachedIn(viewModelScope)
     }
 }

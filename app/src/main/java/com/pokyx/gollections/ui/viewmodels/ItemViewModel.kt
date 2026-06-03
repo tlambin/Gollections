@@ -8,9 +8,12 @@ import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.data.ItemType
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ImageProcessorRepository
+import com.pokyx.gollections.data.repository.ItemRepository
+import com.pokyx.gollections.data.repository.TagRepository
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
 import com.pokyx.gollections.data.tag.Tag
 import com.pokyx.gollections.domain.usecase.DeleteItemUseCase
+import com.pokyx.gollections.domain.usecase.GetCollectionPathUseCase
 import com.pokyx.gollections.domain.usecase.InsertItemUseCase
 import com.pokyx.gollections.domain.usecase.UpdateItemUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -42,14 +45,15 @@ object PropertyKeys {
     const val ALBUM = "prop_album"
 }
 
+// CORRECTION : Les dates ne sont plus figées à l'instanciation de la classe
 data class ItemFormState(
     val title: String = "",
-    val purchaseDate: String = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+    val purchaseDate: String = "",
     val price: String = "",
     val status: String = "",
     val isLoaned: Boolean = false,
     val loanTo: String = "",
-    val loanDate: String = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+    val loanDate: String = "",
     val imageUrl: String = "",
     val selectedPath: List<Long> = emptyList(),
     val selectedTags: Set<Tag> = emptySet(),
@@ -59,15 +63,17 @@ data class ItemFormState(
 
 @HiltViewModel
 class ItemViewModel @Inject constructor(
-    private val repository: CollectionRepository,
+    private val collectionRepository: CollectionRepository,
+    private val itemRepository: ItemRepository,
+    private val tagRepository: TagRepository,
     private val imageProcessor: ImageProcessorRepository,
-    // NOS TROIS NOUVEAUX USE CASES INJECTÉS PAR HILT
     private val insertItemUseCase: InsertItemUseCase,
     private val updateItemUseCase: UpdateItemUseCase,
-    private val deleteItemUseCase: DeleteItemUseCase
+    private val deleteItemUseCase: DeleteItemUseCase,
+    private val getCollectionPathUseCase: GetCollectionPathUseCase // NOUVELLE INJECTION
 ) : ViewModel() {
 
-    val collections = repository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val collections = collectionRepository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _formState = MutableStateFlow(ItemFormState())
     val formState: StateFlow<ItemFormState> = _formState.asStateFlow()
@@ -78,29 +84,26 @@ class ItemViewModel @Inject constructor(
         scannedTitle: String? = null,
         scannedImageUrl: String? = null
     ) {
-        val initialPath = mutableListOf<Long>()
-        if (preSelectedCollectionId != null && collectionsList.isNotEmpty()) {
-            var curr: Long? = preSelectedCollectionId
-            while(curr != null) {
-                initialPath.add(0, curr)
-                curr = collectionsList.find { it.id == curr }?.parentId
-            }
-        }
+        // CORRECTION : Délégation de l'algorithme de calcul du chemin au Use Case
+        val initialPath = getCollectionPathUseCase(preSelectedCollectionId, collectionsList)
+
+        // CORRECTION : La date est calculée à l'instant T où le formulaire est réinitialisé
+        val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+
         _formState.value = ItemFormState(
             selectedPath = initialPath,
             title = scannedTitle ?: "",
-            imageUrl = scannedImageUrl ?: ""
+            imageUrl = scannedImageUrl ?: "",
+            purchaseDate = currentDate,
+            loanDate = currentDate
         )
     }
 
     fun loadItemIntoForm(itemWithTags: CollectionItemWithTags, collectionsList: List<Collection>) {
         val currentItem = itemWithTags.item
-        val path = mutableListOf<Long>()
-        var curr: Long? = currentItem.collectionId
-        while (curr != null) {
-            path.add(0, curr)
-            curr = collectionsList.find { it.id == curr }?.parentId
-        }
+
+        // CORRECTION : Délégation de l'algorithme au Use Case
+        val path = getCollectionPathUseCase(currentItem.collectionId, collectionsList)
 
         val propsMap = itemWithTags.properties.associate { it.label to it.value }
 
@@ -139,8 +142,6 @@ class ItemViewModel @Inject constructor(
         updateForm { it.copy(properties = it.properties + (label to value)) }
     }
 
-    // --- DEBUT DE L'UTILISATION DES USE CASES ---
-
     fun insertItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) {
         viewModelScope.launch {
             insertItemUseCase(item, tags, properties)
@@ -159,15 +160,13 @@ class ItemViewModel @Inject constructor(
         }
     }
 
-    // --- FIN DE L'UTILISATION DES USE CASES ---
+    fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = itemRepository.getItemByIdWithTags(id)
 
-    fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = repository.getItemByIdWithTags(id)
-
-    fun getTagsForCollections(collectionIds: List<Long>): Flow<List<Tag>> = if (collectionIds.isEmpty()) kotlinx.coroutines.flow.flowOf(emptyList()) else repository.getTagsByCollectionIds(collectionIds)
+    fun getTagsForCollections(collectionIds: List<Long>): Flow<List<Tag>> = if (collectionIds.isEmpty()) kotlinx.coroutines.flow.flowOf(emptyList()) else tagRepository.getTagsByCollectionIds(collectionIds)
 
     fun insertTag(name: String, collectionId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            repository.insertTag(Tag(name = name, collectionId = collectionId))
+            tagRepository.insertTag(Tag(name = name, collectionId = collectionId))
         }
     }
 

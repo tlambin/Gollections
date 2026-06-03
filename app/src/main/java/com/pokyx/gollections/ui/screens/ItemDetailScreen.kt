@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
+import com.pokyx.gollections.utils.getLocalizedPropertyLabel // <-- NOUVEL IMPORT
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -88,7 +89,6 @@ fun ItemDetailScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
 
-            // --- LA MAGIE OPÈRE ICI SUR L'IMAGE ---
             with(sharedTransitionScope) {
                 if (item.imageUrl.isNotBlank()) {
                     AsyncImage(
@@ -99,7 +99,7 @@ fun ItemDetailScreen(
                             .height(250.dp)
                             .clip(RoundedCornerShape(16.dp))
                             .sharedElement(
-                                rememberSharedContentState(key = "item_image_${item.id}"), // <-- Plus de "state = "
+                                rememberSharedContentState(key = "item_image_${item.id}"),
                                 animatedVisibilityScope = animatedVisibilityScope,
                                 boundsTransform = { _, _ -> tween(durationMillis = 400) }
                             ),
@@ -113,7 +113,7 @@ fun ItemDetailScreen(
                             .clip(RoundedCornerShape(16.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                             .sharedElement(
-                                rememberSharedContentState(key = "item_image_${item.id}"), // <-- Plus de "state = "
+                                rememberSharedContentState(key = "item_image_${item.id}"),
                                 animatedVisibilityScope = animatedVisibilityScope,
                                 boundsTransform = { _, _ -> tween(durationMillis = 400) }
                             ),
@@ -121,7 +121,6 @@ fun ItemDetailScreen(
                     ) { Text(item.itemType.emoji, fontSize = 60.sp) }
                 }
             }
-            // ---------------------------------------
 
             // Titre et type
             Column {
@@ -146,7 +145,7 @@ fun ItemDetailScreen(
                 }
             }
 
-            // Propriétés dynamiques
+            // CORRECTION DE L'AFFICHAGE DES PROPRIETES
             if (properties.isNotEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -158,7 +157,8 @@ fun ItemDetailScreen(
                         properties.forEach { prop ->
                             if (prop.value.isNotBlank()) {
                                 Column {
-                                    Text(text = prop.label, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                                    // Utilisation de la fonction de traduction ici :
+                                    Text(text = getLocalizedPropertyLabel(prop.label), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
                                     Text(text = prop.value, fontSize = 16.sp, modifier = Modifier.padding(top = 2.dp))
                                 }
                             }

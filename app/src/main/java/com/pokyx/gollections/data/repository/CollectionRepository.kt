@@ -2,89 +2,23 @@ package com.pokyx.gollections.data.repository
 
 import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.CollectionDao
-import com.pokyx.gollections.data.CollectionItem
-import com.pokyx.gollections.data.CollectionItemDao
-import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
-import com.pokyx.gollections.data.tag.CollectionItemWithTags
-import com.pokyx.gollections.data.tag.Tag
-import com.pokyx.gollections.data.tag.TagDao
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.pokyx.gollections.data.ItemProperty
-import androidx.paging.Pager
-import androidx.paging.PagingConfig
-import androidx.paging.PagingData
 
 @Singleton
 class CollectionRepository @Inject constructor(
-    private val collectionDao: CollectionDao,
-    private val collectionItemDao: CollectionItemDao,
-    private val tagDao: TagDao
+    private val collectionDao: CollectionDao
 ) {
-    // --- Collections ---
     fun getRootCollections(): Flow<List<Collection>> = collectionDao.getRootCollections()
     fun getAllCollections(): Flow<List<Collection>> = collectionDao.getAllCollections()
     fun getSubCollections(parentId: Long): Flow<List<Collection>> = collectionDao.getSubCollections(parentId)
     suspend fun getCollectionById(id: Long): Collection? = collectionDao.getCollectionById(id)
+
     suspend fun insertCollection(collection: Collection): Long = collectionDao.insertCollection(collection)
     suspend fun updateCollection(collection: Collection) = collectionDao.updateCollection(collection)
     suspend fun deleteCollection(collection: Collection) = collectionDao.deleteCollection(collection)
     suspend fun deleteCollectionById(id: Long) = collectionDao.deleteCollectionById(id)
     suspend fun renameCollection(id: Long, newName: String) = collectionDao.renameCollection(id, newName)
     suspend fun updateParentId(id: Long, newParentId: Long?) = collectionDao.updateParentId(id, newParentId)
-
-    // --- Items ---
-    fun getAllItemsWithTags(): Flow<List<CollectionItemWithTags>> = collectionItemDao.getAllItemsWithTags()
-    fun getItemsByCollectionWithTags(collectionId: Long): Flow<List<CollectionItemWithTags>> = collectionItemDao.getItemsByCollectionWithTags(collectionId)
-    fun searchItemsWithTags(query: String): kotlinx.coroutines.flow.Flow<List<com.pokyx.gollections.data.tag.CollectionItemWithTags>> {
-        // Enlève les caractères spéciaux qui pourraient faire crasher le moteur SQL, et ajoute l'astérisque
-        val sanitizedQuery = query.replace(Regex("[^\\w\\sÀ-ÿ]"), "").trim()
-        val ftsQuery = if (sanitizedQuery.isNotBlank()) "$sanitizedQuery*" else ""
-
-        return collectionItemDao.searchItemsWithTagsFts(ftsQuery)
-    }
-    fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = collectionItemDao.getItemByIdWithTags(id)
-    suspend fun insertItem(item: CollectionItem): Long = collectionItemDao.insertItem(item)
-
-    suspend fun insertItemProperties(properties: List<ItemProperty>) = collectionItemDao.insertProperties(properties)
-
-    suspend fun clearPropertiesForItem(itemId: Int) = collectionItemDao.clearPropertiesForItem(itemId)
-    suspend fun updateItem(item: CollectionItem) = collectionItemDao.updateItem(item)
-    suspend fun deleteItem(item: CollectionItem) = collectionItemDao.deleteItem(item)
-    suspend fun insertItemTagCrossRef(crossRef: CollectionItemTagCrossRef) = collectionItemDao.insertItemTagCrossRef(crossRef)
-    suspend fun clearTagsForItem(itemId: Int) = collectionItemDao.clearTagsForItem(itemId)
-    suspend fun getItemsWithTagSync(tagName: String): List<CollectionItemWithTags> = collectionItemDao.getItemsWithTagSync(tagName)
-
-    // --- Tags ---
-    fun getTagsByCollectionIds(collectionIds: List<Long>): Flow<List<Tag>> = tagDao.getTagsByCollectionIds(collectionIds)
-    suspend fun insertTag(tag: Tag) = tagDao.insertTag(tag)
-    suspend fun deleteTag(tag: Tag) = tagDao.deleteTag(tag)
-    suspend fun renameTag(collectionId: Long, oldName: String, newName: String) = tagDao.renameTag(collectionId, oldName, newName)
-
-    fun getPagedItemsWithFilters(
-        collectionId: Long,
-        searchQuery: String,
-        tagFilter: String,
-        sortOption: String
-    ): kotlinx.coroutines.flow.Flow<PagingData<com.pokyx.gollections.data.tag.CollectionItemWithTags>> {
-
-        // Sécurisation de la recherche FTS pour éviter les crashs
-        val sanitizedQuery = searchQuery.replace(Regex("[^\\w\\sÀ-ÿ]"), "").trim()
-
-        return Pager(
-            config = PagingConfig(
-                pageSize = 20,          // Nombre d'objets chargés à la fois
-                enablePlaceholders = false
-            ),
-            pagingSourceFactory = {
-                collectionItemDao.getPagedItems(
-                    collectionId = collectionId,
-                    searchQuery = sanitizedQuery,
-                    tagFilter = tagFilter,
-                    sortOption = sortOption
-                )
-            }
-        ).flow
-    }
 }
