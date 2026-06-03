@@ -6,10 +6,8 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -28,7 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
@@ -42,10 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -95,7 +89,6 @@ fun CollectionDetailScreen(
 
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedTagFilter by viewModel.tagFilter.collectAsStateWithLifecycle()
-    val sortOptionString by viewModel.sortOption.collectAsStateWithLifecycle()
 
     var showTagsRow by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
@@ -127,21 +120,6 @@ fun CollectionDetailScreen(
     val pagedItems = pagedItemsFlow.collectAsLazyPagingItems()
 
     val listState = rememberLazyListState()
-    var isHeaderVisible by remember { mutableStateOf(true) }
-    val isAtTop by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 } }
-    val showHeader = isHeaderVisible || isAtTop
-
-    val nestedScrollConnectionForHeader = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (isFabExpanded) isFabExpanded = false
-                if (available.y < -15f) isHeaderVisible = false
-                else if (available.y > 15f) isHeaderVisible = true
-                return Offset.Zero
-            }
-        }
-    }
-
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val errorScanLimitText = stringResource(R.string.error_scan_limit)
@@ -262,10 +240,18 @@ fun CollectionDetailScreen(
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            Column(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnectionForHeader)) {
-                AnimatedVisibility(visible = showHeader, enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(), exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()) {
-                    Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(bottom = 8.dp)) {
 
+            // LA LISTE OCCUPE TOUT L'ÉCRAN SANS CONFLIT DE NESTED SCROLL
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+
+                // NOUVEAU : Le Header (Recherche, Filtres, Boutons) fait partie intégrante de la liste !
+                item {
+                    Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(bottom = 8.dp)) {
                         TextField(
                             value = searchQuery,
                             onValueChange = { viewModel.updateSearchQuery(it) },
@@ -369,55 +355,55 @@ fun CollectionDetailScreen(
                     }
                 }
 
-                LazyColumn(state = listState, modifier = Modifier.weight(1f), contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    if (subCollections.isNotEmpty()) {
-                        item { Text(stringResource(R.string.title_folders), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) }
-                        val chunkedSubCols = subCollections.chunked(3)
-                        items(chunkedSubCols) { rowItems ->
-                            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                for (subCol in rowItems) {
-                                    val subCount = viewModel.getValidMoveDestinations(subCol.id, allCollections).size
-                                    SubCollectionSmallCard(subCol, subCount, Modifier.weight(1f), onCollectionClick)
-                                }
-                                repeat(3 - rowItems.size) { Spacer(modifier = Modifier.weight(1f)) }
+                // Section des Sous-Dossiers
+                if (subCollections.isNotEmpty()) {
+                    item { Text(stringResource(R.string.title_folders), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) }
+                    val chunkedSubCols = subCollections.chunked(3)
+                    items(chunkedSubCols) { rowItems ->
+                        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            for (subCol in rowItems) {
+                                val subCount = viewModel.getValidMoveDestinations(subCol.id, allCollections).size
+                                SubCollectionSmallCard(subCol, subCount, Modifier.weight(1f), onCollectionClick)
                             }
+                            repeat(3 - rowItems.size) { Spacer(modifier = Modifier.weight(1f)) }
                         }
-                        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
                     }
+                    item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+                }
 
-                    if (pagedItems.itemCount > 0 || subCollections.isNotEmpty()) {
-                        item { Text(stringResource(R.string.title_items), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 24.dp)) }
-                    }
+                if (pagedItems.itemCount > 0 || subCollections.isNotEmpty()) {
+                    item { Text(stringResource(R.string.title_items), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 24.dp)) }
+                }
 
-                    val isPagingLoading = pagedItems.loadState.refresh is LoadState.Loading
+                val isPagingLoading = pagedItems.loadState.refresh is LoadState.Loading
 
-                    if (pagedItems.itemCount == 0 && subCollections.isEmpty() && !isPagingLoading) {
-                        item { Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.empty_folder), color = MaterialTheme.colorScheme.outline) } }
-                    } else {
-                        items(
-                            count = pagedItems.itemCount,
-                            key = { index -> pagedItems[index]?.item?.id ?: index }
-                        ) { index ->
-                            val itemWithTags = pagedItems[index]
-                            if (itemWithTags != null) {
-                                val item = itemWithTags.item
-                                Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable { onItemClick(item.id) }, shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
-                                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        with(sharedTransitionScope) {
-                                            if (item.imageUrl.isNotBlank()) {
-                                                AsyncImage(model = item.imageUrl, contentDescription = null, modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).sharedElement(rememberSharedContentState(key = "item_image_${item.id}"), animatedVisibilityScope = animatedVisibilityScope, boundsTransform = { _, _ -> tween(durationMillis = 400) }), contentScale = ContentScale.Crop)
-                                            } else {
-                                                Box(modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant).sharedElement(rememberSharedContentState(key = "item_image_${item.id}"), animatedVisibilityScope = animatedVisibilityScope, boundsTransform = { _, _ -> tween(durationMillis = 400) }), contentAlignment = Alignment.Center) { val displayEmoji = if (collectionCover.isNotBlank() && !collectionCover.startsWith("file")) collectionCover else getEmojiForCollection(collectionName); Text(text = displayEmoji, fontSize = 24.sp) }
-                                            }
+                // Section des Objets
+                if (pagedItems.itemCount == 0 && subCollections.isEmpty() && !isPagingLoading) {
+                    item { Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.empty_folder), color = MaterialTheme.colorScheme.outline) } }
+                } else {
+                    items(
+                        count = pagedItems.itemCount,
+                        key = { index -> pagedItems[index]?.item?.id ?: index }
+                    ) { index ->
+                        val itemWithTags = pagedItems[index]
+                        if (itemWithTags != null) {
+                            val item = itemWithTags.item
+                            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable { onItemClick(item.id) }, shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
+                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    with(sharedTransitionScope) {
+                                        if (item.imageUrl.isNotBlank()) {
+                                            AsyncImage(model = item.imageUrl, contentDescription = null, modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).sharedElement(rememberSharedContentState(key = "item_image_${item.id}"), animatedVisibilityScope = animatedVisibilityScope, boundsTransform = { _, _ -> tween(durationMillis = 400) }), contentScale = ContentScale.Crop)
+                                        } else {
+                                            Box(modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant).sharedElement(rememberSharedContentState(key = "item_image_${item.id}"), animatedVisibilityScope = animatedVisibilityScope, boundsTransform = { _, _ -> tween(durationMillis = 400) }), contentAlignment = Alignment.Center) { val displayEmoji = if (collectionCover.isNotBlank() && !collectionCover.startsWith("file")) collectionCover else getEmojiForCollection(collectionName); Text(text = displayEmoji, fontSize = 24.sp) }
                                         }
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(text = item.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                val tagsStr = itemWithTags.tags.joinToString(" • ") { it.name }
-                                                if (tagsStr.isNotEmpty()) { Text(text = tagsStr, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                                if (item.status != "Non commencé") Text(text = if (tagsStr.isNotEmpty()) " | ${item.status}" else item.status, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
-                                            }
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = item.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            val tagsStr = itemWithTags.tags.joinToString(" • ") { it.name }
+                                            if (tagsStr.isNotEmpty()) { Text(text = tagsStr, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                            if (item.status != "Non commencé") Text(text = if (tagsStr.isNotEmpty()) " | ${item.status}" else item.status, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
                                         }
                                     }
                                 }
@@ -426,6 +412,8 @@ fun CollectionDetailScreen(
                     }
                 }
             }
+
+            // Voile sombre d'ombrage du FAB Menu
             if (isFabExpanded) {
                 Spacer(
                     modifier = Modifier
@@ -440,6 +428,7 @@ fun CollectionDetailScreen(
         }
     }
 
+    // Modal Bottom Sheets & Dialogs
     if (showEditSheet) { ModalBottomSheet(onDismissRequest = { showEditSheet = false }) { Column(modifier = Modifier.padding(bottom = 32.dp)) { Text(stringResource(R.string.manage_folder, collectionName), modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary); ListItem(headlineContent = { Text(stringResource(R.string.rename)) }, leadingContent = { Icon(Icons.Default.Edit, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showRenameDialog = true }); ListItem(headlineContent = { Text(stringResource(R.string.move_folder)) }, leadingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showMoveDialog = true }); ListItem(headlineContent = { Text(stringResource(R.string.delete_folder), color = MaterialTheme.colorScheme.error) }, leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }, modifier = Modifier.clickable { showEditSheet = false; showDeleteCollectionDialog = true }) } } }
     if (showAddSubCollectionDialog) { CollectionDialog(title = stringResource(R.string.new_subfolder_title), onDismiss = { showAddSubCollectionDialog = false }, onConfirm = { name, cover -> viewModel.insertCollection(name = name, cover = cover, parentId = collectionId); showAddSubCollectionDialog = false }, onProcessImage = { uri, cutout, callback -> viewModel.processAndSaveImage(uri, cutout, callback) }) }
     if (showMoveDialog) { val validDestinations = viewModel.getValidMoveDestinations(collectionId, allCollections); AlertDialog(onDismissRequest = { showMoveDialog = false }, title = { Text(stringResource(R.string.move_folder)) }, text = { LazyColumn(modifier = Modifier.fillMaxWidth()) { item { ListItem(headlineContent = { Text(stringResource(R.string.move_to_root), fontWeight = FontWeight.Bold) }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, null); showMoveDialog = false }); HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }; items(validDestinations) { dest -> ListItem(headlineContent = { Text("📁 ${dest.name}") }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, dest.id); showMoveDialog = false }) } } }, confirmButton = { TextButton(onClick = { showMoveDialog = false }) { Text(stringResource(R.string.cancel)) } }) }
