@@ -24,6 +24,14 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// NOUVEAU : Une structure d'état propre pour gérer la recherche par code-barres
+sealed class ScanEvent {
+    object Idle : ScanEvent()
+    object Searching : ScanEvent()
+    data class Success(val title: String?, val imageUrl: String?) : ScanEvent()
+    data class Error(val message: String) : ScanEvent()
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
@@ -59,13 +67,16 @@ class DashboardViewModel @Inject constructor(
         if (query.isBlank()) flowOf(emptyList()) else itemRepository.searchItemsWithTags(query)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // NOUVEAU : État réactif du scanner pour l'UI
+    private val _scanEvent = MutableStateFlow<ScanEvent>(ScanEvent.Idle)
+    val scanEvent = _scanEvent.asStateFlow()
+
     fun updateSearchQuery(query: String) { _searchQuery.value = query }
 
     fun insertCollection(name: String, cover: String = "", parentId: Long? = null) {
         viewModelScope.launch(Dispatchers.IO) { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) }
     }
 
-    // Utilisation du UseCase pour l'image
     fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
         viewModelScope.launch {
             val result = processImageUseCase(sourceUri, shouldCutout)
@@ -73,11 +84,21 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    // Utilisation du UseCase pour le code-barres
-    fun fetchItemFromBarcode(barcode: String, onResult: (title: String?, imageUrl: String?, errorMsg: String?) -> Unit) {
+    // CORRIGÉ : On n'utilise plus de callback imbriqué, on met à jour l'état métier
+    fun fetchItemFromBarcode(barcode: String) {
+        _scanEvent.value = ScanEvent.Searching
         viewModelScope.launch {
             val result = scanBarcodeUseCase(barcode)
-            onResult(result.title, result.imageUrl, result.errorMsg)
+            if (result.title != null) {
+                _scanEvent.value = ScanEvent.Success(result.title, result.imageUrl)
+            } else {
+                _scanEvent.value = ScanEvent.Error(result.errorMsg ?: "error_scan_not_found")
+            }
         }
+    }
+
+    // NOUVEAU : Permet à l'UI de remettre l'état à zéro après traitement
+    fun resetScanEvent() {
+        _scanEvent.value = ScanEvent.Idle
     }
 }

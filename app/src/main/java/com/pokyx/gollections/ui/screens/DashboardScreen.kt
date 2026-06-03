@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
 import com.pokyx.gollections.ui.components.CollectionDialog
 import com.pokyx.gollections.ui.viewmodels.DashboardViewModel
+import com.pokyx.gollections.ui.viewmodels.ScanEvent // NOUVEL IMPORT
 import com.pokyx.gollections.utils.BarcodeScanner
 import com.pokyx.gollections.utils.getEmojiForCollection
 import com.pokyx.gollections.utils.getUnitForCollection
@@ -60,7 +61,6 @@ fun DashboardScreen(
     val rootCollections by viewModel.rootCollections.collectAsStateWithLifecycle()
     val allCollections by viewModel.collections.collectAsStateWithLifecycle()
 
-    // NOUVEAU : On récupère les compteurs directement sous forme de Int
     val totalItems by viewModel.totalItemsCount.collectAsStateWithLifecycle()
     val loanedItems by viewModel.loanedItemsCount.collectAsStateWithLifecycle()
 
@@ -68,10 +68,32 @@ fun DashboardScreen(
     val searchResultsWithTags by viewModel.searchedItemsWithTags.collectAsStateWithLifecycle()
     val collectionCounts by viewModel.collectionItemCounts.collectAsStateWithLifecycle()
 
+    // NOUVEAU : On observe l'état du scan
+    val scanEvent by viewModel.scanEvent.collectAsStateWithLifecycle()
+
     var showAddCollectionDialog by remember { mutableStateOf(false) }
     var isFabExpanded by remember { mutableStateOf(false) }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    // NOUVEAU : Gestion des effets secondaires (Toast, Navigation) basée sur l'état du scan
+    LaunchedEffect(scanEvent) {
+        when (val event = scanEvent) {
+            is ScanEvent.Searching -> {
+                Toast.makeText(context, R.string.error_scan_searching, Toast.LENGTH_SHORT).show()
+            }
+            is ScanEvent.Success -> {
+                onAddItemClick(event.title, event.imageUrl)
+                viewModel.resetScanEvent()
+            }
+            is ScanEvent.Error -> {
+                val toastMsgId = if (event.message == "error_scan_limit") R.string.error_scan_limit else R.string.error_scan_not_found
+                Toast.makeText(context, toastMsgId, Toast.LENGTH_LONG).show()
+                viewModel.resetScanEvent()
+            }
+            is ScanEvent.Idle -> {}
+        }
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -110,21 +132,10 @@ fun DashboardScreen(
                             onClick = {
                                 isFabExpanded = false
                                 val barcodeScanner = BarcodeScanner(context)
+                                // CORRIGÉ : L'UI délègue immédiatement la gestion au ViewModel
                                 barcodeScanner.startScan(
-                                    onScanSuccess = { barcode ->
-                                        Toast.makeText(context, context.getString(R.string.error_scan_searching), Toast.LENGTH_SHORT).show()
-                                        viewModel.fetchItemFromBarcode(barcode) { title, imageUrl, errorMsg ->
-                                            if (title != null) {
-                                                onAddItemClick(title, imageUrl)
-                                            } else {
-                                                val toastMsg = if (errorMsg == "error_scan_limit") context.getString(R.string.error_scan_limit) else context.getString(R.string.error_scan_not_found)
-                                                Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
-                                            }
-                                        }
-                                    },
-                                    onScanFailure = { exception ->
-                                        android.util.Log.e("BarcodeScan", "Erreur : ${exception.message}")
-                                    }
+                                    onScanSuccess = { barcode -> viewModel.fetchItemFromBarcode(barcode) },
+                                    onScanFailure = { exception -> android.util.Log.e("BarcodeScan", "Erreur : ${exception.message}") }
                                 )
                             }
                         )
@@ -162,7 +173,6 @@ fun DashboardScreen(
                 }
 
                 if (searchQuery.isEmpty()) {
-                    // NOUVEAU : On utilise directement les compteurs optimisés !
                     item { StatsSlider(totalItems = totalItems, totalCollections = rootCollections.size, loanedItems = loanedItems) }
 
                     item { Text(text = stringResource(R.string.my_collections), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
@@ -233,7 +243,6 @@ fun StatsSlider(totalItems: Int, totalCollections: Int, loanedItems: Int) {
 @Composable
 fun StatCardContent(title: String, value: String, sub: String) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(text = title, fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)); Text(text = value, fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer); Text(text = sub, fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)) } }
 
-// NOUVEAU : On utilise la Map collectionCounts au lieu des listes lourdes
 @Composable
 fun CollectionsGrid(collections: List<DBCollection>, collectionCounts: Map<Long, Int>, onCollectionClick: (Long) -> Unit, onAddCollectionClick: () -> Unit, viewModel: DashboardViewModel) {
     val totalSlots = collections.size + 1
@@ -247,7 +256,6 @@ fun CollectionsGrid(collections: List<DBCollection>, collectionCounts: Map<Long,
     }
 }
 
-// NOUVEAU : Récupération immédiate dans le dictionnaire, O(1), plus de calcul
 @Composable
 fun CollectionItemCard(collection: DBCollection, collectionCounts: Map<Long, Int>, onCollectionClick: (Long) -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
