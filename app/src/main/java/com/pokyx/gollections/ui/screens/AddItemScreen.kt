@@ -120,7 +120,6 @@ fun AddItemScreen(
 
             OutlinedTextField(value = state.title, onValueChange = { text -> viewModel.updateForm { it.copy(title = text) } }, label = { Text(stringResource(R.string.label_title)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
-            // AFFICHAGE DYNAMIQUE DES PROPRIETES
             if (state.properties.isNotEmpty()) {
                 Text(stringResource(R.string.title_specific_info), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
                 state.properties.forEach { (labelKey, value) ->
@@ -211,9 +210,12 @@ fun AddItemScreen(
             Button(
                 onClick = {
                     if (state.title.isNotBlank() && finalSelectedId != null) {
+                        // CORRECTION ICI : Conversion sécurisée de la String vers le Double
+                        val parsedPrice = state.price.trim().replace(",", ".").toDoubleOrNull() ?: 0.0
+
                         val newItem = CollectionItem(
                             title = state.title.trim(), collectionId = finalSelectedId,
-                            purchaseDate = state.purchaseDate.trim(), price = state.price.trim(), imageUrl = state.imageUrl,
+                            purchaseDate = state.purchaseDate.trim(), price = parsedPrice, imageUrl = state.imageUrl,
                             status = state.status, isLoaned = state.isLoaned, loanTo = if (state.isLoaned) state.loanTo.trim() else "", loanDate = if (state.isLoaned) state.loanDate else "",
                             itemType = state.itemType
                         )

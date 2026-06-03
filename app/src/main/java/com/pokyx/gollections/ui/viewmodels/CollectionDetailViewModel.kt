@@ -5,12 +5,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.repository.CollectionRepository
-import com.pokyx.gollections.data.repository.ImageProcessorRepository
 import com.pokyx.gollections.data.repository.ItemRepository
 import com.pokyx.gollections.data.repository.TagRepository
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
 import com.pokyx.gollections.data.tag.Tag
-import com.pokyx.gollections.domain.usecase.GetCollectionDescendantsUseCase // <-- NOUVEL IMPORT
+import com.pokyx.gollections.domain.usecase.GetCollectionDescendantsUseCase
+import com.pokyx.gollections.domain.usecase.DeleteCollectionUseCase
+import com.pokyx.gollections.domain.usecase.ProcessImageUseCase
+import com.pokyx.gollections.domain.usecase.ScanBarcodeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,7 +20,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import com.pokyx.gollections.data.repository.BarcodeRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
@@ -34,45 +35,32 @@ class CollectionDetailViewModel @Inject constructor(
     private val collectionRepository: CollectionRepository,
     private val itemRepository: ItemRepository,
     private val tagRepository: TagRepository,
-    private val imageProcessor: ImageProcessorRepository,
-    private val barcodeRepository: BarcodeRepository,
-    private val getCollectionDescendantsUseCase: GetCollectionDescendantsUseCase // <-- NOUVELLE INJECTION
+    private val getCollectionDescendantsUseCase: GetCollectionDescendantsUseCase,
+    private val deleteCollectionUseCase: DeleteCollectionUseCase,
+    private val processImageUseCase: ProcessImageUseCase,
+    private val scanBarcodeUseCase: ScanBarcodeUseCase
 ) : ViewModel() {
 
     val allCollections = collectionRepository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val allItemsWithTags = itemRepository.getAllItemsWithTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun getSubCollections(parentId: Long): Flow<List<Collection>> = collectionRepository.getSubCollections(parentId)
     fun getItemsByCollectionWithTags(collectionId: Long): Flow<List<CollectionItemWithTags>> = itemRepository.getItemsByCollectionWithTags(collectionId)
     suspend fun getCollectionById(id: Long): Collection? = collectionRepository.getCollectionById(id)
 
-    fun getTotalCount(collectionId: Long): Flow<Int> = combine(allCollections, allItemsWithTags) { collections, items ->
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun getTotalCount(collectionId: Long): Flow<Int> = allCollections.flatMapLatest { collections ->
         val descendantIds = getCollectionDescendantsUseCase(collectionId, collections)
-        items.count { it.item.collectionId in descendantIds }
+        if (descendantIds.isEmpty()) flowOf(0) else itemRepository.getItemsCountByCollectionIds(descendantIds)
     }.flowOn(Dispatchers.Default)
 
-    fun getTotalValue(collectionId: Long): Flow<Double> = combine(allCollections, allItemsWithTags) { collections, items ->
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun getTotalValue(collectionId: Long): Flow<Double> = allCollections.flatMapLatest { collections ->
         val descendantIds = getCollectionDescendantsUseCase(collectionId, collections)
-        items.filter { it.item.collectionId in descendantIds }
-            .mapNotNull { it.item.price.replace(",", ".").toDoubleOrNull() }
-            .sum()
+        if (descendantIds.isEmpty()) flowOf(0.0) else itemRepository.getItemsTotalValueByCollectionIds(descendantIds)
     }.flowOn(Dispatchers.Default)
 
-    fun insertCollection(name: String, cover: String = "", parentId: Long? = null) {
-        viewModelScope.launch(Dispatchers.IO) { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) }
-    }
-
-    fun deleteCollection(collectionId: Long) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val descendantIds = getCollectionDescendantsUseCase(collectionId, allCollections.value)
-            val itemsToDelete = allItemsWithTags.value.filter { it.item.collectionId in descendantIds }
-            itemsToDelete.forEach {
-                if (it.item.imageUrl.isNotBlank()) imageProcessor.deleteImageFile(it.item.imageUrl)
-            }
-            collectionRepository.deleteCollectionById(collectionId)
-        }
-    }
-
+    fun insertCollection(name: String, cover: String = "", parentId: Long? = null) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) } }
+    fun deleteCollection(collectionId: Long) { viewModelScope.launch(Dispatchers.IO) { deleteCollectionUseCase(collectionId, allCollections.value) } }
     fun renameCollection(id: Long, newName: String) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.renameCollection(id, newName) } }
     fun updateCollectionParent(id: Long, newParentId: Long?) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.updateParentId(id, newParentId) } }
     fun updateCollection(collection: Collection) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.updateCollection(collection) } }
@@ -87,23 +75,15 @@ class CollectionDetailViewModel @Inject constructor(
     fun deleteTag(tag: Tag) { viewModelScope.launch(Dispatchers.IO) { tagRepository.deleteTag(tag) } }
     fun renameTag(collectionId: Long, oldName: String, newName: String) { viewModelScope.launch(Dispatchers.IO) { tagRepository.renameTag(collectionId, oldName, newName) } }
 
+    // Utilisation des UseCases
     fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
-        viewModelScope.launch {
-            val resultUri = imageProcessor.processImage(sourceUri, shouldCutout)
-            onResult(resultUri?.toString())
-        }
+        viewModelScope.launch { onResult(processImageUseCase(sourceUri, shouldCutout)) }
     }
 
     fun fetchItemFromBarcode(barcode: String, onResult: (title: String?, imageUrl: String?, errorMsg: String?) -> Unit) {
         viewModelScope.launch {
-            val result = barcodeRepository.getInfoFromBarcode(barcode)
-            if (result.isSuccess) {
-                val info = result.getOrNull()
-                onResult(info?.title, info?.imageUrl, null)
-            } else {
-                val exceptionMsg = result.exceptionOrNull()?.message
-                onResult(null, null, exceptionMsg)
-            }
+            val result = scanBarcodeUseCase(barcode)
+            onResult(result.title, result.imageUrl, result.errorMsg)
         }
     }
 

@@ -121,7 +121,6 @@ fun EditItemScreen(
 
             OutlinedTextField(value = state.title, onValueChange = { text -> viewModel.updateForm { it.copy(title = text) } }, label = { Text(stringResource(R.string.label_title)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
-            // CORRECTION DE L'AFFICHAGE DYNAMIQUE DES PROPRIETES
             if (state.properties.isNotEmpty()) {
                 Text(stringResource(R.string.title_specific_info), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
                 state.properties.forEach { (labelKey, value) ->
@@ -226,11 +225,13 @@ fun EditItemScreen(
             Button(
                 onClick = {
                     if (state.title.isNotBlank() && finalSelectedId != null && itemWithTags != null) {
+                        val parsedPrice = state.price.trim().replace(",", ".").toDoubleOrNull() ?: 0.0
+
                         val updatedItem = itemWithTags!!.item.copy(
                             title = state.title.trim(),
                             collectionId = finalSelectedId,
                             purchaseDate = state.purchaseDate.trim(),
-                            price = state.price.trim(),
+                            price = parsedPrice,
                             imageUrl = state.imageUrl,
                             status = state.status,
                             isLoaned = state.isLoaned,

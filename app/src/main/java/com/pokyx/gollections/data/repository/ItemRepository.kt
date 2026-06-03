@@ -36,10 +36,19 @@ class ItemRepository @Inject constructor(
     suspend fun clearPropertiesForItem(itemId: Int) = itemDao.clearPropertiesForItem(itemId)
     suspend fun insertItemTagCrossRef(crossRef: CollectionItemTagCrossRef) = itemDao.insertItemTagCrossRef(crossRef)
 
-    // CORRIGÉ : Le DAO utilise insertProperties
     suspend fun insertProperties(properties: List<ItemProperty>) = itemDao.insertProperties(properties)
 
     suspend fun getItemsWithTagSync(tagName: String): List<CollectionItemWithTags> = itemDao.getItemsWithTagSync(tagName)
+
+    fun getItemsCountByCollectionIds(collectionIds: List<Long>): Flow<Int> = itemDao.getItemsCountByCollectionIds(collectionIds)
+    fun getItemsTotalValueByCollectionIds(collectionIds: List<Long>): Flow<Double> = itemDao.getItemsTotalValueByCollectionIds(collectionIds)
+    suspend fun getItemsByCollectionIdsSync(collectionIds: List<Long>): List<CollectionItemWithTags> = itemDao.getItemsByCollectionIdsSync(collectionIds)
+
+    fun getTotalItemsCount(): Flow<Int> = itemDao.getTotalItemsCount()
+    fun getLoanedItemsCount(): Flow<Int> = itemDao.getLoanedItemsCount()
+
+    // NOUVELLE FONCTION EXPOSÉE
+    fun getItemCountsPerCollection() = itemDao.getItemCountsPerCollection()
 
     fun getPagedItemsWithFilters(
         collectionId: Long,

@@ -5,7 +5,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -68,6 +67,7 @@ import com.pokyx.gollections.utils.buildPathBottomUp
 import com.pokyx.gollections.utils.getEmojiForCollection
 import java.text.NumberFormat
 import com.pokyx.gollections.ui.components.*
+import androidx.compose.animation.core.animateFloatAsState
 
 enum class SortOption { NAME_ASC, NAME_DESC, PRICE_ASC, PRICE_DESC, DATE_DESC, DATE_ASC }
 
@@ -184,7 +184,6 @@ fun CollectionDetailScreen(
                             Text(text = collectionName, fontWeight = FontWeight.Bold, fontSize = 28.sp)
 
                             if (pathCollections.size > 1) {
-                                // CORRECTION : Fil d'Ariane "Minuscule" avec l'icône de la racine
                                 val rootCol = pathCollections.first()
                                 val breadcrumbText = pathCollections.dropLast(1).joinToString(" > ") { it.name }
 
@@ -197,7 +196,6 @@ fun CollectionDetailScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
-                                        // Petite bulle icône de la collection mère
                                         Box(
                                             modifier = Modifier
                                                 .size(14.dp)
@@ -217,7 +215,7 @@ fun CollectionDetailScreen(
                                         Text(
                                             text = breadcrumbText,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontSize = 10.sp, // Texte minuscule
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.Medium,
                                             modifier = Modifier.padding(end = 2.dp)
                                         )
@@ -305,7 +303,6 @@ fun CollectionDetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Bouton d'action "Tags" (Couleur pleine)
                             Box(
                                 modifier = Modifier
                                     .size(44.dp)
@@ -319,12 +316,11 @@ fun CollectionDetailScreen(
                                 Icon(LabelIcon, contentDescription = "Tags", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
                             }
 
-                            // CORRECTION : Bulle d'information Quantité (Fond grisâtre "surfaceVariant" + Contour "primaryContainer")
                             Box(
                                 modifier = Modifier
                                     .height(44.dp)
                                     .width(90.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape) // Retour du fond gris !
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
                                     .border(2.5.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape)
                                     .padding(horizontal = 8.dp),
                                 contentAlignment = Alignment.Center
@@ -332,12 +328,11 @@ fun CollectionDetailScreen(
                                 Text(text = totalCount.toString(), color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
 
-                            // CORRECTION : Bulle d'information Valeur (Fond grisâtre "surfaceVariant" + Contour "primaryContainer")
                             Box(
                                 modifier = Modifier
                                     .height(44.dp)
                                     .width(90.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape) // Retour du fond gris !
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
                                     .border(2.5.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape)
                                     .padding(horizontal = 8.dp),
                                 contentAlignment = Alignment.Center
@@ -345,7 +340,6 @@ fun CollectionDetailScreen(
                                 Text(text = formattedValue, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
 
-                            // Bouton d'action "Trier" (Couleur pleine)
                             Box {
                                 Box(
                                     modifier = Modifier

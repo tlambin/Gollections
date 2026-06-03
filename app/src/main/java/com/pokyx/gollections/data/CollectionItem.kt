@@ -44,7 +44,7 @@ data class CollectionItem(
     val loanDate: String = "",
 
     val purchaseDate: String = "",
-    val price: String = "",
+    val price: Double = 0.0,
     val status: String = "Non commencé",
     val comment: String = "",
     val imageUrl: String = "",

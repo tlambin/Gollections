@@ -99,28 +99,30 @@ class ItemViewModel @Inject constructor(
         )
     }
 
-    fun loadItemIntoForm(itemWithTags: CollectionItemWithTags, collectionsList: List<Collection>) {
-        val currentItem = itemWithTags.item
+    fun loadItemIntoForm(itemWithTags: com.pokyx.gollections.data.tag.CollectionItemWithTags, collectionsList: List<com.pokyx.gollections.data.Collection>) {
+        val item = itemWithTags.item
 
-        // CORRECTION : Délégation de l'algorithme au Use Case
-        val path = getCollectionPathUseCase(currentItem.collectionId, collectionsList)
+        // Conversion sécurisée du Double vers la String pour le formulaire de saisie
+        val priceString = if (item.price > 0.0) item.price.toString().replace(".", ",") else ""
 
-        val propsMap = itemWithTags.properties.associate { it.label to it.value }
+        val path = com.pokyx.gollections.utils.buildPathBottomUp(item.collectionId, collectionsList)
 
-        _formState.value = ItemFormState(
-            title = currentItem.title,
-            purchaseDate = currentItem.purchaseDate,
-            price = currentItem.price,
-            status = currentItem.status,
-            isLoaned = currentItem.isLoaned,
-            loanTo = currentItem.loanTo,
-            loanDate = currentItem.loanDate,
-            imageUrl = currentItem.imageUrl,
-            selectedPath = path,
-            selectedTags = itemWithTags.tags.toSet(),
-            itemType = currentItem.itemType,
-            properties = propsMap
-        )
+        updateForm { oldState ->
+            oldState.copy(
+                title = item.title,
+                price = priceString, // <--- C'EST CETTE LIGNE QUI EST CORRIGÉE
+                purchaseDate = item.purchaseDate,
+                imageUrl = item.imageUrl,
+                status = item.status,
+                isLoaned = item.isLoaned,
+                loanTo = item.loanTo,
+                loanDate = item.loanDate,
+                itemType = item.itemType,
+                selectedPath = path,
+                selectedTags = itemWithTags.tags.toSet(),
+                properties = itemWithTags.properties.associate { it.label to it.value }
+            )
+        }
     }
 
     fun updateForm(transform: (ItemFormState) -> ItemFormState) {

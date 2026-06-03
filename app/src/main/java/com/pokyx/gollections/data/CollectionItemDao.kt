@@ -11,6 +11,12 @@ import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
 import kotlinx.coroutines.flow.Flow
 
+// NOUVELLE DATA CLASS POUR COMPTER RAPIDEMENT
+data class CollectionItemCount(
+    val collectionId: Long,
+    val count: Int
+)
+
 @Dao
 interface CollectionItemDao {
 
@@ -60,14 +66,34 @@ interface CollectionItemDao {
     @Query("DELETE FROM item_properties WHERE itemId = :itemId")
     suspend fun clearPropertiesForItem(itemId: Int)
 
-    // NOUVELLE RECHERCHE ULTRA-RAPIDE
+    // REQUÊTES D'OPTIMISATION MÉMOIRE (Étape 1 & 2)
+    @Query("SELECT COUNT(*) FROM collection_items WHERE collectionId IN (:collectionIds)")
+    fun getItemsCountByCollectionIds(collectionIds: List<Long>): Flow<Int>
+
+    @Query("SELECT COALESCE(SUM(price), 0.0) FROM collection_items WHERE collectionId IN (:collectionIds)")
+    fun getItemsTotalValueByCollectionIds(collectionIds: List<Long>): Flow<Double>
+
+    @Transaction
+    @Query("SELECT * FROM collection_items WHERE collectionId IN (:collectionIds)")
+    suspend fun getItemsByCollectionIdsSync(collectionIds: List<Long>): List<CollectionItemWithTags>
+
+    @Query("SELECT COUNT(*) FROM collection_items")
+    fun getTotalItemsCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM collection_items WHERE isLoaned = 1")
+    fun getLoanedItemsCount(): Flow<Int>
+
+    // NOUVELLE REQUÊTE POUR LE DASHBOARD (GROUP BY)
+    @Query("SELECT collectionId, COUNT(id) as count FROM collection_items GROUP BY collectionId")
+    fun getItemCountsPerCollection(): Flow<List<CollectionItemCount>>
+
     @Transaction
     @Query("""
         SELECT collection_items.* FROM collection_items 
         JOIN collection_items_fts ON collection_items.id = collection_items_fts.rowid 
         WHERE collection_items_fts MATCH :searchQuery
     """)
-    fun searchItemsWithTagsFts(searchQuery: String): kotlinx.coroutines.flow.Flow<List<com.pokyx.gollections.data.tag.CollectionItemWithTags>>
+    fun searchItemsWithTagsFts(searchQuery: String): Flow<List<CollectionItemWithTags>>
 
     @Transaction
     @Query("""
@@ -83,8 +109,8 @@ interface CollectionItemDao {
         ORDER BY 
             CASE WHEN :sortOption = 'NAME_ASC' THEN ci.title END ASC,
             CASE WHEN :sortOption = 'NAME_DESC' THEN ci.title END DESC,
-            CASE WHEN :sortOption = 'PRICE_ASC' THEN CAST(REPLACE(ci.price, ',', '.') AS REAL) END ASC,
-            CASE WHEN :sortOption = 'PRICE_DESC' THEN CAST(REPLACE(ci.price, ',', '.') AS REAL) END DESC,
+            CASE WHEN :sortOption = 'PRICE_ASC' THEN ci.price END ASC,
+            CASE WHEN :sortOption = 'PRICE_DESC' THEN ci.price END DESC,
             CASE WHEN :sortOption = 'DATE_ASC' THEN substr(ci.purchaseDate, 7, 4) || substr(ci.purchaseDate, 4, 2) || substr(ci.purchaseDate, 1, 2) END ASC,
             CASE WHEN :sortOption = 'DATE_DESC' THEN substr(ci.purchaseDate, 7, 4) || substr(ci.purchaseDate, 4, 2) || substr(ci.purchaseDate, 1, 2) END DESC
     """)
@@ -93,5 +119,5 @@ interface CollectionItemDao {
         searchQuery: String,
         tagFilter: String,
         sortOption: String
-    ): androidx.paging.PagingSource<Int, com.pokyx.gollections.data.tag.CollectionItemWithTags>
+    ): androidx.paging.PagingSource<Int, CollectionItemWithTags>
 }

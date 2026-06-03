@@ -59,11 +59,13 @@ fun DashboardScreen(
 
     val rootCollections by viewModel.rootCollections.collectAsStateWithLifecycle()
     val allCollections by viewModel.collections.collectAsStateWithLifecycle()
-    val allItemsWithTags by viewModel.allItemsWithTags.collectAsStateWithLifecycle()
+
+    // NOUVEAU : On récupère les compteurs directement sous forme de Int
+    val totalItems by viewModel.totalItemsCount.collectAsStateWithLifecycle()
+    val loanedItems by viewModel.loanedItemsCount.collectAsStateWithLifecycle()
+
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val searchResultsWithTags by viewModel.searchedItemsWithTags.collectAsStateWithLifecycle()
-
-    // NOUVEAU : Récupération du dictionnaire pré-calculé
     val collectionCounts by viewModel.collectionItemCounts.collectAsStateWithLifecycle()
 
     var showAddCollectionDialog by remember { mutableStateOf(false) }
@@ -160,9 +162,10 @@ fun DashboardScreen(
                 }
 
                 if (searchQuery.isEmpty()) {
-                    item { StatsSlider(totalItems = allItemsWithTags.size, totalCollections = rootCollections.size, loanedItems = allItemsWithTags.count { it.item.isLoaned }) }
+                    // NOUVEAU : On utilise directement les compteurs optimisés !
+                    item { StatsSlider(totalItems = totalItems, totalCollections = rootCollections.size, loanedItems = loanedItems) }
+
                     item { Text(text = stringResource(R.string.my_collections), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
-                    // NOUVEAU : Transmission de collectionCounts au composant grille
                     item { CollectionsGrid(collections = rootCollections, collectionCounts = collectionCounts, onCollectionClick = onCollectionClick, onAddCollectionClick = { showAddCollectionDialog = true }, viewModel = viewModel) }
                 } else {
                     item { Text(text = "${stringResource(R.string.title_items)} (${searchResultsWithTags.size})", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }

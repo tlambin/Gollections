@@ -32,7 +32,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
-import com.pokyx.gollections.utils.getLocalizedPropertyLabel // <-- NOUVEL IMPORT
+import com.pokyx.gollections.utils.getLocalizedPropertyLabel
+import java.text.NumberFormat
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -122,7 +123,6 @@ fun ItemDetailScreen(
                 }
             }
 
-            // Titre et type
             Column {
                 Text(text = item.title, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp)
                 Spacer(modifier = Modifier.height(4.dp))
@@ -134,7 +134,6 @@ fun ItemDetailScreen(
                 }
             }
 
-            // Tags
             if (tags.isNotEmpty()) {
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     tags.forEach { tag ->
@@ -145,7 +144,6 @@ fun ItemDetailScreen(
                 }
             }
 
-            // CORRECTION DE L'AFFICHAGE DES PROPRIETES
             if (properties.isNotEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -157,7 +155,6 @@ fun ItemDetailScreen(
                         properties.forEach { prop ->
                             if (prop.value.isNotBlank()) {
                                 Column {
-                                    // Utilisation de la fonction de traduction ici :
                                     Text(text = getLocalizedPropertyLabel(prop.label), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
                                     Text(text = prop.value, fontSize = 16.sp, modifier = Modifier.padding(top = 2.dp))
                                 }
@@ -167,7 +164,7 @@ fun ItemDetailScreen(
                 }
             }
 
-            // Informations Financières / Acquisition
+            // CORRECTION DES BLOCS DE PRIX : Utilisation de Double
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
@@ -175,7 +172,11 @@ fun ItemDetailScreen(
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.label_price), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                        Text(text = if (item.price.isNotBlank()) "${item.price} €" else stringResource(R.string.not_specified_price), fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        val formattedPrice = remember(item.price) {
+                            if (item.price > 0.0) NumberFormat.getCurrencyInstance().format(item.price)
+                            else null
+                        }
+                        Text(text = formattedPrice ?: stringResource(R.string.not_specified_price), fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.label_purchase_date), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
@@ -184,7 +185,6 @@ fun ItemDetailScreen(
                 }
             }
 
-            // Prêt
             if (item.isLoaned) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),

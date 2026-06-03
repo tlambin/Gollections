@@ -17,9 +17,9 @@ import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
         Tag::class,
         CollectionItemTagCrossRef::class,
         ItemProperty::class,
-        CollectionItemFts::class // <-- NOUVELLE ENTITÉ AJOUTÉE
+        CollectionItemFts::class
     ],
-    version = 14, // <-- PASSAGE À LA VERSION 14
+    version = 15,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
