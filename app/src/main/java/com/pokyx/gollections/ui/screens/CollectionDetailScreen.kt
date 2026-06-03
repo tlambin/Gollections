@@ -20,7 +20,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items // <-- L'IMPORT QUI MANQUAIT EST ICI
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
@@ -120,7 +121,9 @@ fun CollectionDetailScreen(
     val totalValue by remember(collectionId) { viewModel.getTotalValue(collectionId) }.collectAsStateWithLifecycle(initialValue = 0.0)
     val formattedValue = remember(totalValue) { NumberFormat.getCurrencyInstance().format(totalValue) }
 
-    val pagedItems = viewModel.getPagedItems(collectionId).collectAsLazyPagingItems()
+    // CORRECTION MAJEURE : On "remember" le Flow pour qu'il ne se recrée pas au scroll
+    val pagedItemsFlow = remember(collectionId) { viewModel.getPagedItems(collectionId) }
+    val pagedItems = pagedItemsFlow.collectAsLazyPagingItems()
 
     val listState = rememberLazyListState()
     var isHeaderVisible by remember { mutableStateOf(true) }
@@ -140,7 +143,6 @@ fun CollectionDetailScreen(
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    // --- CORRECTION : Les ressources textuelles doivent être récupérées ici ---
     val errorScanLimitText = stringResource(R.string.error_scan_limit)
     val errorScanNotFoundText = stringResource(R.string.error_scan_not_found)
     val errorScanSearchingText = stringResource(R.string.error_scan_searching)
@@ -186,7 +188,6 @@ fun CollectionDetailScreen(
                             isFabExpanded = false
                             val barcodeScanner = BarcodeScanner(context)
                             barcodeScanner.startScan(onScanSuccess = { barcode ->
-                                // --- CORRECTION : Utilisation de la variable préparée ---
                                 Toast.makeText(context, errorScanSearchingText, Toast.LENGTH_SHORT).show()
                                 viewModel.fetchItemFromBarcode(barcode) { title, imageUrl, errorMsg ->
                                     if (title != null) {
@@ -273,7 +274,10 @@ fun CollectionDetailScreen(
                         item { Text(stringResource(R.string.title_items), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 24.dp)) }
                     }
 
-                    if (pagedItems.itemCount == 0 && subCollections.isEmpty()) {
+                    // CORRECTION 2 : On ne montre "Collection vide" que si le chargement Paging est vraiment terminé
+                    val isPagingLoading = pagedItems.loadState.refresh is LoadState.Loading
+
+                    if (pagedItems.itemCount == 0 && subCollections.isEmpty() && !isPagingLoading) {
                         item { Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.empty_folder), color = MaterialTheme.colorScheme.outline) } }
                     } else {
                         items(
