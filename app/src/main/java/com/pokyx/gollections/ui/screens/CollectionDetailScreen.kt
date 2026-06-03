@@ -116,12 +116,6 @@ fun CollectionDetailScreen(
     val totalValue by remember(collectionId) { viewModel.getTotalValue(collectionId) }.collectAsStateWithLifecycle(initialValue = 0.0)
     val formattedValue = remember(totalValue) { NumberFormat.getCurrencyInstance().format(totalValue) }
 
-    // CORRECTION : On récupère la map des comptes d'items par collection (déjà implémentée dans ton ViewModel)
-    // Si la méthode n'existe pas, on peut utiliser viewModel.collectionItemCounts s'il est partagé, ou une propriété similaire.
-    // Dans le cas de CollectionDetailViewModel, on passe par les flux unitaires ou globaux.
-    // Pour que ce soit synchrone et ultra-rapide comme sur le Dashboard, on peut simplement appeler viewModel.getTotalCount(subCol.id) pour chaque enfant,
-    // ou collecter l'état global. Utilisons getTotalCount(id) sous forme de StateCompose pour chaque sous-collection de manière récursive et propre.
-
     val pagedItemsFlow = remember(collectionId) { viewModel.getPagedItems(collectionId) }
     val pagedItems = pagedItemsFlow.collectAsLazyPagingItems()
 
@@ -135,85 +129,95 @@ fun CollectionDetailScreen(
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            LargeTopAppBar(
-                title = {
-                    val collapsedFraction = scrollBehavior.state.collapsedFraction
-
-                    if (collapsedFraction > 0.5f) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(end = 24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = collectionName,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    } else {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                            if (collectionCover.startsWith("file") || collectionCover.startsWith("/") || collectionCover.startsWith("content") || collectionCover.startsWith("http")) {
-                                AsyncImage(model = collectionCover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(42.dp).clip(CircleShape))
-                            } else {
-                                val displayEmoji = if (collectionCover.isNotBlank()) collectionCover else getEmojiForCollection(collectionName)
-                                Text(text = displayEmoji, fontSize = 36.sp)
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(text = collectionName, fontWeight = FontWeight.Bold, fontSize = 28.sp)
-
-                            if (pathCollections.size > 1) {
-                                val rootCol = pathCollections.first()
-                                val breadcrumbText = pathCollections.dropLast(1).joinToString(" > ") { it.name }
-
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-                                    shape = RoundedCornerShape(50),
-                                    modifier = Modifier.padding(start = 12.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(14.dp)
-                                                .background(MaterialTheme.colorScheme.surface, CircleShape),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (rootCol.cover.startsWith("file") || rootCol.cover.startsWith("/") || rootCol.cover.startsWith("content") || rootCol.cover.startsWith("http")) {
-                                                AsyncImage(model = rootCol.cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(CircleShape))
-                                            } else {
-                                                val rootEmoji = if (rootCol.cover.isNotBlank()) rootCol.cover else getEmojiForCollection(rootCol.name)
-                                                Text(text = rootEmoji, fontSize = 9.sp)
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.width(4.dp))
-
-                                        Text(
-                                            text = breadcrumbText,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            modifier = Modifier.padding(end = 2.dp)
-                                        )
-                                    }
+            Box(modifier = Modifier.fillMaxWidth()) {
+                LargeTopAppBar(
+                    title = {
+                        // On laisse le titre vide dans l'implémentation native de la TopBar
+                        // pour éviter qu'il ne vienne interférer ou se décaler à gauche au scroll.
+                        val collapsedFraction = scrollBehavior.state.collapsedFraction
+                        if (collapsedFraction <= 0.5f) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.horizontalScroll(rememberScrollState())
+                            ) {
+                                if (collectionCover.startsWith("file") || collectionCover.startsWith("/") || collectionCover.startsWith("content") || collectionCover.startsWith("http")) {
+                                    AsyncImage(model = collectionCover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(42.dp).clip(CircleShape))
+                                } else {
+                                    val displayEmoji = if (collectionCover.isNotBlank()) collectionCover else getEmojiForCollection(collectionName)
+                                    Text(text = displayEmoji, fontSize = 36.sp)
                                 }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(text = collectionName, fontWeight = FontWeight.Bold, fontSize = 28.sp)
                             }
                         }
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = onBackClick,
+                            modifier = Modifier.padding(start = 8.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                        ) {
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = { showEditSheet = true },
+                            modifier = Modifier.padding(end = 8.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                        ) {
+                            Icon(imageVector = Icons.Default.MoreVert, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                    },
+                    scrollBehavior = scrollBehavior,
+                    colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = MaterialTheme.colorScheme.background, scrolledContainerColor = MaterialTheme.colorScheme.background)
+                )
+
+                val collapsedFraction = scrollBehavior.state.collapsedFraction
+
+                // 1. QUAND ON SCROLLE : Le titre de la collection prend la place centrale exacte (même conteneur que le fil d'ariane)
+                if (collapsedFraction > 0.5f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .height(64.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = collectionName,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 72.dp) // Même contrainte d'espace que le fil d'ariane
+                        )
                     }
-                },
-                navigationIcon = { IconButton(onClick = onBackClick, modifier = Modifier.padding(start = 8.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape)) { Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = MaterialTheme.colorScheme.onPrimaryContainer) } },
-                actions = { IconButton(onClick = { showEditSheet = true }, modifier = Modifier.padding(end = 8.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape)) { Icon(imageVector = Icons.Default.MoreVert, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onPrimaryContainer) } },
-                scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = MaterialTheme.colorScheme.background, scrolledContainerColor = MaterialTheme.colorScheme.background)
-            )
+                }
+                // 2. QUAND ON EST EN HAUT : Le fil d'ariane s'affiche au même endroit exact
+                else if (pathCollections.size > 1) {
+                    val breadcrumbText = pathCollections.dropLast(1).joinToString(" > ") { it.name }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .height(64.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = breadcrumbText,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 72.dp)
+                        )
+                    }
+                }
+            }
         },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End) {
@@ -359,14 +363,12 @@ fun CollectionDetailScreen(
                     }
                 }
 
-                // Section des Sous-Dossiers (Ajustée avec le bon compteur d'items récursif !)
                 if (subCollections.isNotEmpty()) {
                     item { Text(stringResource(R.string.title_folders), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) }
                     val chunkedSubCols = subCollections.chunked(3)
                     items(chunkedSubCols) { rowItems ->
                         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             for (subCol in rowItems) {
-                                // CORRECTION : On utilise la fonction getTotalCount du ViewModel pour écouter en direct le vrai nombre d'items enfants
                                 val subCollectionItemCount by viewModel.getTotalCount(subCol.id).collectAsStateWithLifecycle(initialValue = 0)
                                 SubCollectionSmallCard(subCol, subCollectionItemCount, Modifier.weight(1f), onCollectionClick)
                             }
