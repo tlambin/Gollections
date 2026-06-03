@@ -24,8 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -41,8 +39,7 @@ import com.pokyx.gollections.R
 import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.data.ItemType
 import com.pokyx.gollections.data.tag.Tag
-import com.pokyx.gollections.ui.components.CustomPlanetIcon
-import com.pokyx.gollections.ui.components.CustomRoundedGalleryIcon
+import com.pokyx.gollections.ui.theme.GollectionsIcons
 import com.pokyx.gollections.ui.viewmodels.ItemPropertyKey
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
 import com.pokyx.gollections.utils.AddTagDialog
@@ -52,37 +49,6 @@ import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-
-// Icône d'appareil photo personnalisée
-val CustomCameraIcon: ImageVector
-    get() = ImageVector.Builder(
-        name = "CustomCamera",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 24f,
-        viewportHeight = 24f
-    ).path(fill = androidx.compose.ui.graphics.SolidColor(Color.Black)) {
-        moveTo(12f, 18f)
-        curveToRelative(-2.21f, 0f, -4f, -1.79f, -4f, -4f)
-        curveToRelative(0f, -2.21f, 1.79f, -4f, 4f, -4f)
-        curveToRelative(2.21f, 0f, 4f, 1.79f, 4f, 4f)
-        curveToRelative(0f, 2.21f, -1.79f, 4f, -4f, 4f)
-        close()
-        moveTo(9f, 2f)
-        lineTo(7.17f, 4.002f)
-        horizontalLineTo(4f)
-        curveTo(2.9f, 4.002f, 2f, 4.9f, 2f, 6.002f)
-        verticalLineToRelative(12f)
-        curveToRelative(0f, 1.1f, 0.9f, 2f, 2f, 2f)
-        horizontalLineToRelative(16f)
-        curveToRelative(1.1f, 0f, 2f, -0.9f, 2f, -2f)
-        verticalLineToRelative(-12f)
-        curveToRelative(0f, -1.1f, -0.9f, -2f, -2f, -2f)
-        horizontalLineToRelative(-3.17f)
-        lineTo(15f, 2f)
-        horizontalLineTo(9f)
-        close()
-    }.build()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -131,8 +97,6 @@ fun AddItemScreen(
     var isProcessingImage by remember { mutableStateOf(false) }
 
     var tempPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
-    val tempPhotoUri = tempPhotoUriString?.let { Uri.parse(it) }
-
     var pendingImageUriString by rememberSaveable { mutableStateOf<String?>(null) }
     val pendingImageUri = pendingImageUriString?.let { Uri.parse(it) }
 
@@ -278,11 +242,10 @@ fun AddItemScreen(
             text = {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; showUrlDialog = true }.padding(8.dp)) {
-                        Icon(imageVector = CustomPlanetIcon, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(imageVector = GollectionsIcons.Planet, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("URL", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
-                    // MODIFIÉ ICI : Utilisation de notre CustomCameraIcon sur-mesure !
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
                         showSourceDialog = false
                         val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir)
@@ -290,12 +253,12 @@ fun AddItemScreen(
                         tempPhotoUriString = uri.toString()
                         cameraLauncher.launch(uri)
                     }.padding(8.dp)) {
-                        Icon(imageVector = CustomCameraIcon, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(imageVector = GollectionsIcons.Camera, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Appareil", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)) {
-                        Icon(imageVector = CustomRoundedGalleryIcon, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Galerie", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }

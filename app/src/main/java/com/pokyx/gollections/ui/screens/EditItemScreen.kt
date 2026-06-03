@@ -18,7 +18,6 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -40,8 +39,7 @@ import com.pokyx.gollections.R
 import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.data.ItemType
 import com.pokyx.gollections.data.tag.Tag
-import com.pokyx.gollections.ui.components.CustomPlanetIcon
-import com.pokyx.gollections.ui.components.CustomRoundedGalleryIcon
+import com.pokyx.gollections.ui.theme.GollectionsIcons
 import com.pokyx.gollections.ui.viewmodels.ItemPropertyKey
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
 import com.pokyx.gollections.utils.AddTagDialog
@@ -100,7 +98,6 @@ fun EditItemScreen(
     var isProcessingImage by remember { mutableStateOf(false) }
 
     var tempPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
-    val tempPhotoUri = tempPhotoUriString?.let { Uri.parse(it) }
     var pendingImageUriString by rememberSaveable { mutableStateOf<String?>(null) }
     val pendingImageUri = pendingImageUriString?.let { Uri.parse(it) }
 
@@ -215,14 +212,13 @@ fun EditItemScreen(
         if (showPurchaseDatePicker) DatePickerDialog(onDismissRequest = { showPurchaseDatePicker = false }, confirmButton = { TextButton(onClick = { purchaseDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(purchaseDate = dateStr) } }; showPurchaseDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showPurchaseDatePicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = purchaseDatePickerState) }
         if (showLoanDatePicker) DatePickerDialog(onDismissRequest = { showLoanDatePicker = false }, confirmButton = { TextButton(onClick = { loanDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(loanDate = dateStr) } }; showLoanDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showLoanDatePicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = loanDatePickerState) }
 
-        // MODIFIÉ ICI AUSSI : Remplacement de l'icône appareil photo standard par notre CustomCameraIcon vectorielle !
         if (showSourceDialog) AlertDialog(
             onDismissRequest = { showSourceDialog = false },
             title = { Text("Source de l'illustration", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
             text = {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; showUrlDialog = true }.padding(8.dp)) {
-                        Icon(imageVector = CustomPlanetIcon, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(imageVector = GollectionsIcons.Planet, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("URL", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
@@ -233,12 +229,12 @@ fun EditItemScreen(
                         tempPhotoUriString = uri.toString()
                         cameraLauncher.launch(uri)
                     }.padding(8.dp)) {
-                        Icon(imageVector = CustomCameraIcon, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(imageVector = GollectionsIcons.Camera, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Appareil", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)) {
-                        Icon(imageVector = CustomRoundedGalleryIcon, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Galerie", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
