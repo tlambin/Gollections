@@ -5,13 +5,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.CollectionItem
-import com.pokyx.gollections.data.ItemProperty
-import com.pokyx.gollections.data.ItemType // <-- Import ajouté
+import com.pokyx.gollections.data.ItemType
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ImageProcessorRepository
-import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
 import com.pokyx.gollections.data.tag.Tag
+import com.pokyx.gollections.domain.usecase.DeleteItemUseCase
+import com.pokyx.gollections.domain.usecase.InsertItemUseCase
+import com.pokyx.gollections.domain.usecase.UpdateItemUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -19,13 +20,27 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
+
+object PropertyKeys {
+    const val DIRECTOR = "prop_director"
+    const val RELEASE_DATE = "prop_release_date"
+    const val SYNOPSIS = "prop_synopsis"
+    const val AUTHOR = "prop_author"
+    const val PUBLICATION_DATE = "prop_publication_date"
+    const val SUMMARY = "prop_summary"
+    const val PAGE_COUNT = "prop_page_count"
+    const val STUDIO = "prop_studio"
+    const val PLATFORM = "prop_platform"
+    const val DESCRIPTION = "prop_description"
+    const val ARTIST = "prop_artist"
+    const val ALBUM = "prop_album"
+}
 
 data class ItemFormState(
     val title: String = "",
@@ -38,14 +53,18 @@ data class ItemFormState(
     val imageUrl: String = "",
     val selectedPath: List<Long> = emptyList(),
     val selectedTags: Set<Tag> = emptySet(),
-    val itemType: ItemType = ItemType.OTHER, // <-- Modifié ici
+    val itemType: ItemType = ItemType.OTHER,
     val properties: Map<String, String> = emptyMap()
 )
 
 @HiltViewModel
 class ItemViewModel @Inject constructor(
     private val repository: CollectionRepository,
-    private val imageProcessor: ImageProcessorRepository
+    private val imageProcessor: ImageProcessorRepository,
+    // NOS TROIS NOUVEAUX USE CASES INJECTÉS PAR HILT
+    private val insertItemUseCase: InsertItemUseCase,
+    private val updateItemUseCase: UpdateItemUseCase,
+    private val deleteItemUseCase: DeleteItemUseCase
 ) : ViewModel() {
 
     val collections = repository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -96,7 +115,7 @@ class ItemViewModel @Inject constructor(
             imageUrl = currentItem.imageUrl,
             selectedPath = path,
             selectedTags = itemWithTags.tags.toSet(),
-            itemType = currentItem.itemType, // Plus besoin de conversion !
+            itemType = currentItem.itemType,
             properties = propsMap
         )
     }
@@ -105,12 +124,12 @@ class ItemViewModel @Inject constructor(
         _formState.update(transform)
     }
 
-    fun changeItemType(newType: ItemType) { // <-- Modifié ici
+    fun changeItemType(newType: ItemType) {
         val defaultProps = when (newType) {
-            ItemType.MOVIE -> mapOf("Réalisateur" to "", "Date de sortie" to "", "Synopsis" to "")
-            ItemType.BOOK -> mapOf("Auteur" to "", "Date de publication" to "", "Résumé" to "", "Nombre de pages" to "")
-            ItemType.GAME -> mapOf("Studio" to "", "Plateforme" to "", "Date de sortie" to "", "Description" to "")
-            ItemType.MUSIC -> mapOf("Artiste" to "", "Album" to "", "Date de sortie" to "")
+            ItemType.MOVIE -> mapOf(PropertyKeys.DIRECTOR to "", PropertyKeys.RELEASE_DATE to "", PropertyKeys.SYNOPSIS to "")
+            ItemType.BOOK -> mapOf(PropertyKeys.AUTHOR to "", PropertyKeys.PUBLICATION_DATE to "", PropertyKeys.SUMMARY to "", PropertyKeys.PAGE_COUNT to "")
+            ItemType.GAME -> mapOf(PropertyKeys.STUDIO to "", PropertyKeys.PLATFORM to "", PropertyKeys.RELEASE_DATE to "", PropertyKeys.DESCRIPTION to "")
+            ItemType.MUSIC -> mapOf(PropertyKeys.ARTIST to "", PropertyKeys.ALBUM to "", PropertyKeys.RELEASE_DATE to "")
             ItemType.OTHER -> emptyMap()
         }
         updateForm { it.copy(itemType = newType, properties = defaultProps) }
@@ -120,52 +139,37 @@ class ItemViewModel @Inject constructor(
         updateForm { it.copy(properties = it.properties + (label to value)) }
     }
 
+    // --- DEBUT DE L'UTILISATION DES USE CASES ---
+
     fun insertItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) {
         viewModelScope.launch {
-            val itemId = repository.insertItem(item).toInt()
-            tags.forEach { tag ->
-                repository.insertItemTagCrossRef(CollectionItemTagCrossRef(itemId, tag.id))
-            }
-            val itemProperties = properties.map { (key, value) ->
-                ItemProperty(itemId = itemId, label = key, value = value)
-            }
-            repository.insertItemProperties(itemProperties)
+            insertItemUseCase(item, tags, properties)
         }
     }
 
     fun updateItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val oldItem = repository.getItemByIdWithTags(item.id).firstOrNull()?.item
-            if (oldItem != null && oldItem.imageUrl != item.imageUrl && oldItem.imageUrl.isNotBlank()) {
-                imageProcessor.deleteImageFile(oldItem.imageUrl)
-            }
-
-            repository.updateItem(item)
-            repository.clearTagsForItem(item.id)
-            repository.clearPropertiesForItem(item.id)
-
-            tags.forEach { tag ->
-                repository.insertItemTagCrossRef(CollectionItemTagCrossRef(item.id, tag.id))
-            }
-            val itemProperties = properties.map { (key, value) ->
-                ItemProperty(itemId = item.id, label = key, value = value)
-            }
-            repository.insertItemProperties(itemProperties)
+        viewModelScope.launch {
+            updateItemUseCase(item, tags, properties)
         }
     }
 
     fun deleteItem(item: CollectionItem) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.deleteItem(item)
-            if (item.imageUrl.isNotBlank()) {
-                imageProcessor.deleteImageFile(item.imageUrl)
-            }
+        viewModelScope.launch {
+            deleteItemUseCase(item)
         }
     }
 
+    // --- FIN DE L'UTILISATION DES USE CASES ---
+
     fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = repository.getItemByIdWithTags(id)
+
     fun getTagsForCollections(collectionIds: List<Long>): Flow<List<Tag>> = if (collectionIds.isEmpty()) kotlinx.coroutines.flow.flowOf(emptyList()) else repository.getTagsByCollectionIds(collectionIds)
-    fun insertTag(name: String, collectionId: Long) { viewModelScope.launch { repository.insertTag(Tag(name = name, collectionId = collectionId)) } }
+
+    fun insertTag(name: String, collectionId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertTag(Tag(name = name, collectionId = collectionId))
+        }
+    }
 
     fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
         viewModelScope.launch {

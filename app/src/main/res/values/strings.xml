@@ -109,7 +109,21 @@
     <string name="action_scan">Scanner un code-barres</string>
     <string name="action_create_collection">Créer une collection</string>
     <string name="action_add_item">Ajouter un objet</string>
-    <string name="error_scan_limit">Limite de scan atteinte. Veuillez patienter un peu.</string>
-    <string name="error_scan_not_found">Produit introuvable dans la base de données.</string>
-    <string name="error_scan_searching">Recherche de l\'objet en cours...</string>
+    <string name="error_scan_limit">Limite de scans quotidiens atteinte. Réessayez demain.</string>
+    <string name="error_scan_not_found">Code-barres introuvable dans la base de données.</string>
+    <string name="error_network">Pas de connexion internet.</string>
+    <string name="error_scan_searching">Recherche du produit en cours...</string>
+    
+    <string name="prop_director">Réalisateur</string>
+    <string name="prop_release_date">Date de sortie</string>
+    <string name="prop_synopsis">Synopsis</string>
+    <string name="prop_author">Auteur</string>
+    <string name="prop_publication_date">Date de publication</string>
+    <string name="prop_summary">Résumé</string>
+    <string name="prop_page_count">Nombre de pages</string>
+    <string name="prop_studio">Studio</string>
+    <string name="prop_platform">Plateforme</string>
+    <string name="prop_description">Description</string>
+    <string name="prop_artist">Artiste</string>
+    <string name="prop_album">Album</string>
 </resources>

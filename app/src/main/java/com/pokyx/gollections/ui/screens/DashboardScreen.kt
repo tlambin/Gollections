@@ -63,6 +63,9 @@ fun DashboardScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val searchResultsWithTags by viewModel.searchedItemsWithTags.collectAsStateWithLifecycle()
 
+    // NOUVEAU : Récupération du dictionnaire pré-calculé
+    val collectionCounts by viewModel.collectionItemCounts.collectAsStateWithLifecycle()
+
     var showAddCollectionDialog by remember { mutableStateOf(false) }
     var isFabExpanded by remember { mutableStateOf(false) }
 
@@ -73,7 +76,7 @@ fun DashboardScreen(
         topBar = {
             LargeTopAppBar(
                 title = { Text(text = stringResource(R.string.app_name), fontWeight = FontWeight.Bold) },
-                actions = { // <-- NOUVELLE SECTION ACTIONS
+                actions = {
                     IconButton(
                         onClick = onProfileClick,
                         modifier = Modifier
@@ -100,20 +103,20 @@ fun DashboardScreen(
                         modifier = Modifier.padding(bottom = 16.dp)
                     ) {
                         MultiFabItem(
-                            text = stringResource(R.string.action_scan), // <-- Remplacé
+                            text = stringResource(R.string.action_scan),
                             icon = CameraIcon,
                             onClick = {
                                 isFabExpanded = false
                                 val barcodeScanner = BarcodeScanner(context)
                                 barcodeScanner.startScan(
                                     onScanSuccess = { barcode ->
-                                        Toast.makeText(context, context.getString(R.string.error_scan_searching), Toast.LENGTH_SHORT).show() // <-- Remplacé
+                                        Toast.makeText(context, context.getString(R.string.error_scan_searching), Toast.LENGTH_SHORT).show()
                                         viewModel.fetchItemFromBarcode(barcode) { title, imageUrl, errorMsg ->
                                             if (title != null) {
                                                 onAddItemClick(title, imageUrl)
                                             } else {
                                                 val toastMsg = if (errorMsg == "error_scan_limit") context.getString(R.string.error_scan_limit) else context.getString(R.string.error_scan_not_found)
-                                                Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show() // <-- Remplacé
+                                                Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
                                             }
                                         }
                                     },
@@ -124,12 +127,12 @@ fun DashboardScreen(
                             }
                         )
                         MultiFabItem(
-                            text = stringResource(R.string.action_create_collection), // <-- Remplacé
+                            text = stringResource(R.string.action_create_collection),
                             icon = FolderIcon,
                             onClick = { isFabExpanded = false; showAddCollectionDialog = true }
                         )
                         MultiFabItem(
-                            text = stringResource(R.string.action_add_item), // <-- Remplacé
+                            text = stringResource(R.string.action_add_item),
                             icon = Icons.Default.Add,
                             onClick = { isFabExpanded = false; onAddItemClick(null, null) }
                         )
@@ -159,7 +162,8 @@ fun DashboardScreen(
                 if (searchQuery.isEmpty()) {
                     item { StatsSlider(totalItems = allItemsWithTags.size, totalCollections = rootCollections.size, loanedItems = allItemsWithTags.count { it.item.isLoaned }) }
                     item { Text(text = stringResource(R.string.my_collections), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
-                    item { CollectionsGrid(collections = rootCollections, allCollections = allCollections, items = allItemsWithTags, onCollectionClick = onCollectionClick, onAddCollectionClick = { showAddCollectionDialog = true }, viewModel = viewModel) }
+                    // NOUVEAU : Transmission de collectionCounts au composant grille
+                    item { CollectionsGrid(collections = rootCollections, collectionCounts = collectionCounts, onCollectionClick = onCollectionClick, onAddCollectionClick = { showAddCollectionDialog = true }, viewModel = viewModel) }
                 } else {
                     item { Text(text = "${stringResource(R.string.title_items)} (${searchResultsWithTags.size})", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
                     if (searchResultsWithTags.isEmpty()) { item { Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_object_found), color = Color.Gray) } } }
@@ -226,23 +230,25 @@ fun StatsSlider(totalItems: Int, totalCollections: Int, loanedItems: Int) {
 @Composable
 fun StatCardContent(title: String, value: String, sub: String) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(text = title, fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)); Text(text = value, fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer); Text(text = sub, fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)) } }
 
+// NOUVEAU : On utilise la Map collectionCounts au lieu des listes lourdes
 @Composable
-fun CollectionsGrid(collections: List<DBCollection>, allCollections: List<DBCollection>, items: List<com.pokyx.gollections.data.tag.CollectionItemWithTags>, onCollectionClick: (Long) -> Unit, onAddCollectionClick: () -> Unit, viewModel: DashboardViewModel) {
+fun CollectionsGrid(collections: List<DBCollection>, collectionCounts: Map<Long, Int>, onCollectionClick: (Long) -> Unit, onAddCollectionClick: () -> Unit, viewModel: DashboardViewModel) {
     val totalSlots = collections.size + 1
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         for (i in 0 until totalSlots step 2) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (i < collections.size) CollectionItemCard(collections[i], allCollections, items, onCollectionClick, Modifier.weight(1f), viewModel) else if (i == collections.size) AddCollectionCard(onClick = onAddCollectionClick, modifier = Modifier.weight(1f))
-                if (i + 1 < collections.size) CollectionItemCard(collections[i + 1], allCollections, items, onCollectionClick, Modifier.weight(1f), viewModel) else if (i + 1 == collections.size) AddCollectionCard(onClick = onAddCollectionClick, modifier = Modifier.weight(1f)) else Box(modifier = Modifier.weight(1f))
+                if (i < collections.size) CollectionItemCard(collections[i], collectionCounts, onCollectionClick, Modifier.weight(1f)) else if (i == collections.size) AddCollectionCard(onClick = onAddCollectionClick, modifier = Modifier.weight(1f))
+                if (i + 1 < collections.size) CollectionItemCard(collections[i + 1], collectionCounts, onCollectionClick, Modifier.weight(1f)) else if (i + 1 == collections.size) AddCollectionCard(onClick = onAddCollectionClick, modifier = Modifier.weight(1f)) else Box(modifier = Modifier.weight(1f))
             }
         }
     }
 }
 
+// NOUVEAU : Récupération immédiate dans le dictionnaire, O(1), plus de calcul
 @Composable
-fun CollectionItemCard(collection: DBCollection, allCollections: List<DBCollection>, items: List<com.pokyx.gollections.data.tag.CollectionItemWithTags>, onCollectionClick: (Long) -> Unit, modifier: Modifier = Modifier, viewModel: DashboardViewModel) {
+fun CollectionItemCard(collection: DBCollection, collectionCounts: Map<Long, Int>, onCollectionClick: (Long) -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val count = viewModel.getRecursiveItemCount(collection.id, allCollections, items)
+    val count = collectionCounts[collection.id] ?: 0
     val unit = getUnitForCollection(context, collection.name, count)
     CollectionCard(title = collection.name, count = "$count $unit", cover = collection.cover, fallbackEmoji = getEmojiForCollection(collection.name), onClick = { onCollectionClick(collection.id) }, modifier = modifier)
 }

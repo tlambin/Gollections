@@ -20,10 +20,7 @@ import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
         CollectionItemFts::class // <-- NOUVELLE ENTITÉ AJOUTÉE
     ],
     version = 14, // <-- PASSAGE À LA VERSION 14
-    exportSchema = true,
-    autoMigrations = [
-        AutoMigration(from = 13, to = 14) // <-- MIGRATION AUTOMATIQUE
-    ]
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
