@@ -23,6 +23,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.pokyx.gollections.data.Collection
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextAlign
+import com.pokyx.gollections.utils.getEmojiForCollection
 
 // --- Définition des icônes manquantes (Vecteurs originaux réintégrés) ---
 val LabelIcon: ImageVector get() = ImageVector.Builder(name = "Label", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f).apply { path(fill = SolidColor(Color.Black)) { moveTo(17.63f, 5.84f); curveTo(17.27f, 5.33f, 16.67f, 5.0f, 16.0f, 5.0f); lineTo(5.01f, 5.0f); curveTo(3.9f, 5.0f, 3.0f, 5.9f, 3.0f, 7.0f); lineTo(3.0f, 17.0f); curveTo(3.0f, 18.1f, 3.9f, 19.0f, 5.01f, 19.0f); lineTo(16.0f, 19.0f); curveTo(16.67f, 19.0f, 17.27f, 18.66f, 17.63f, 18.15f); lineTo(22.0f, 12.0f); lineTo(17.63f, 5.84f); close() } }.build()
@@ -101,47 +107,92 @@ fun SubCollectionSmallCard(
     collection: Collection,
     itemCount: Int,
     modifier: Modifier = Modifier,
-    onClick: (Long) -> Unit
+    onCollectionClick: (Long) -> Unit
 ) {
-    Card(
+    // Box globale permettant de faire dépasser la bulle de notification (Badge) en haut à droite
+    Box(
         modifier = modifier
-            .aspectRatio(1.1f)
-            .clickable { onClick(collection.id) },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            .padding(top = 6.dp, end = 6.dp) // Espace pour laisser la bulle déborder sans être coupée
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(8.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+        // 1. La Carte Principale
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(110.dp)
+                .clickable { onCollectionClick(collection.id) },
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            )
         ) {
-            if (collection.cover.isNotBlank() && (collection.cover.startsWith("file") || collection.cover.startsWith("content") || collection.cover.startsWith("/"))) {
-                AsyncImage(
-                    model = collection.cover,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween // Aligne le contenu aux deux extrémités (Centre & Bas)
+            ) {
+                // Spacer technique pour pousser l'icône vers le centre exact
+                Spacer(modifier = Modifier.weight(1f))
+
+                // L'icône ou l'émoji, parfaitement centré verticalement et horizontalement
+                Box(
+                    modifier = Modifier.wrapContentSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (collection.cover.startsWith("file") || collection.cover.startsWith("/") || collection.cover.startsWith("content") || collection.cover.startsWith("http")) {
+                        AsyncImage(
+                            model = collection.cover,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                        )
+                    } else {
+                        val displayEmoji = if (collection.cover.isNotBlank()) collection.cover else getEmojiForCollection(collection.name)
+                        Text(
+                            text = displayEmoji,
+                            fontSize = 32.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                // Spacer pour donner du poids et caler le texte tout en bas
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Le nom de la sous-collection en bas
+                Text(
+                    text = collection.name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
-            } else {
-                val displayEmoji = if (collection.cover.isNotBlank()) collection.cover else "📁"
-                Text(text = displayEmoji, fontSize = 24.sp)
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = collection.name,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = "$itemCount obj",
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.outline,
-                maxLines = 1
-            )
+        }
+
+        // 2. La bulle d'objet sortante en haut à droite (uniquement si elle contient des objets)
+        if (itemCount > 0) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 6.dp, y = (-6).dp) // Décale la bulle vers l'extérieur
+                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = itemCount.toString(),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }

@@ -116,6 +116,12 @@ fun CollectionDetailScreen(
     val totalValue by remember(collectionId) { viewModel.getTotalValue(collectionId) }.collectAsStateWithLifecycle(initialValue = 0.0)
     val formattedValue = remember(totalValue) { NumberFormat.getCurrencyInstance().format(totalValue) }
 
+    // CORRECTION : On récupère la map des comptes d'items par collection (déjà implémentée dans ton ViewModel)
+    // Si la méthode n'existe pas, on peut utiliser viewModel.collectionItemCounts s'il est partagé, ou une propriété similaire.
+    // Dans le cas de CollectionDetailViewModel, on passe par les flux unitaires ou globaux.
+    // Pour que ce soit synchrone et ultra-rapide comme sur le Dashboard, on peut simplement appeler viewModel.getTotalCount(subCol.id) pour chaque enfant,
+    // ou collecter l'état global. Utilisons getTotalCount(id) sous forme de StateCompose pour chaque sous-collection de manière récursive et propre.
+
     val pagedItemsFlow = remember(collectionId) { viewModel.getPagedItems(collectionId) }
     val pagedItems = pagedItemsFlow.collectAsLazyPagingItems()
 
@@ -241,7 +247,6 @@ fun CollectionDetailScreen(
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
 
-            // LA LISTE OCCUPE TOUT L'ÉCRAN SANS CONFLIT DE NESTED SCROLL
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
@@ -249,7 +254,6 @@ fun CollectionDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
 
-                // NOUVEAU : Le Header (Recherche, Filtres, Boutons) fait partie intégrante de la liste !
                 item {
                     Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(bottom = 8.dp)) {
                         TextField(
@@ -355,15 +359,16 @@ fun CollectionDetailScreen(
                     }
                 }
 
-                // Section des Sous-Dossiers
+                // Section des Sous-Dossiers (Ajustée avec le bon compteur d'items récursif !)
                 if (subCollections.isNotEmpty()) {
                     item { Text(stringResource(R.string.title_folders), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) }
                     val chunkedSubCols = subCollections.chunked(3)
                     items(chunkedSubCols) { rowItems ->
                         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             for (subCol in rowItems) {
-                                val subCount = viewModel.getValidMoveDestinations(subCol.id, allCollections).size
-                                SubCollectionSmallCard(subCol, subCount, Modifier.weight(1f), onCollectionClick)
+                                // CORRECTION : On utilise la fonction getTotalCount du ViewModel pour écouter en direct le vrai nombre d'items enfants
+                                val subCollectionItemCount by viewModel.getTotalCount(subCol.id).collectAsStateWithLifecycle(initialValue = 0)
+                                SubCollectionSmallCard(subCol, subCollectionItemCount, Modifier.weight(1f), onCollectionClick)
                             }
                             repeat(3 - rowItems.size) { Spacer(modifier = Modifier.weight(1f)) }
                         }
@@ -377,7 +382,6 @@ fun CollectionDetailScreen(
 
                 val isPagingLoading = pagedItems.loadState.refresh is LoadState.Loading
 
-                // Section des Objets
                 if (pagedItems.itemCount == 0 && subCollections.isEmpty() && !isPagingLoading) {
                     item { Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.empty_folder), color = MaterialTheme.colorScheme.outline) } }
                 } else {
@@ -413,7 +417,6 @@ fun CollectionDetailScreen(
                 }
             }
 
-            // Voile sombre d'ombrage du FAB Menu
             if (isFabExpanded) {
                 Spacer(
                     modifier = Modifier
@@ -428,7 +431,6 @@ fun CollectionDetailScreen(
         }
     }
 
-    // Modal Bottom Sheets & Dialogs
     if (showEditSheet) { ModalBottomSheet(onDismissRequest = { showEditSheet = false }) { Column(modifier = Modifier.padding(bottom = 32.dp)) { Text(stringResource(R.string.manage_folder, collectionName), modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary); ListItem(headlineContent = { Text(stringResource(R.string.rename)) }, leadingContent = { Icon(Icons.Default.Edit, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showRenameDialog = true }); ListItem(headlineContent = { Text(stringResource(R.string.move_folder)) }, leadingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showMoveDialog = true }); ListItem(headlineContent = { Text(stringResource(R.string.delete_folder), color = MaterialTheme.colorScheme.error) }, leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }, modifier = Modifier.clickable { showEditSheet = false; showDeleteCollectionDialog = true }) } } }
     if (showAddSubCollectionDialog) { CollectionDialog(title = stringResource(R.string.new_subfolder_title), onDismiss = { showAddSubCollectionDialog = false }, onConfirm = { name, cover -> viewModel.insertCollection(name = name, cover = cover, parentId = collectionId); showAddSubCollectionDialog = false }, onProcessImage = { uri, cutout, callback -> viewModel.processAndSaveImage(uri, cutout, callback) }) }
     if (showMoveDialog) { val validDestinations = viewModel.getValidMoveDestinations(collectionId, allCollections); AlertDialog(onDismissRequest = { showMoveDialog = false }, title = { Text(stringResource(R.string.move_folder)) }, text = { LazyColumn(modifier = Modifier.fillMaxWidth()) { item { ListItem(headlineContent = { Text(stringResource(R.string.move_to_root), fontWeight = FontWeight.Bold) }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, null); showMoveDialog = false }); HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }; items(validDestinations) { dest -> ListItem(headlineContent = { Text("📁 ${dest.name}") }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, dest.id); showMoveDialog = false }) } } }, confirmButton = { TextButton(onClick = { showMoveDialog = false }) { Text(stringResource(R.string.cancel)) } }) }
