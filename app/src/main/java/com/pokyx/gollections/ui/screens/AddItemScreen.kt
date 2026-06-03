@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -38,7 +41,9 @@ import com.pokyx.gollections.R
 import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.data.ItemType
 import com.pokyx.gollections.data.tag.Tag
-import com.pokyx.gollections.ui.viewmodels.ItemPropertyKey // NOUVEL IMPORT
+import com.pokyx.gollections.ui.components.CustomPlanetIcon
+import com.pokyx.gollections.ui.components.CustomRoundedGalleryIcon
+import com.pokyx.gollections.ui.viewmodels.ItemPropertyKey
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
 import com.pokyx.gollections.utils.AddTagDialog
 import com.pokyx.gollections.utils.getDynamicStatusOptions
@@ -47,6 +52,37 @@ import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+// Icône d'appareil photo personnalisée
+val CustomCameraIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "CustomCamera",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = androidx.compose.ui.graphics.SolidColor(Color.Black)) {
+        moveTo(12f, 18f)
+        curveToRelative(-2.21f, 0f, -4f, -1.79f, -4f, -4f)
+        curveToRelative(0f, -2.21f, 1.79f, -4f, 4f, -4f)
+        curveToRelative(2.21f, 0f, 4f, 1.79f, 4f, 4f)
+        curveToRelative(0f, 2.21f, -1.79f, 4f, -4f, 4f)
+        close()
+        moveTo(9f, 2f)
+        lineTo(7.17f, 4.002f)
+        horizontalLineTo(4f)
+        curveTo(2.9f, 4.002f, 2f, 4.9f, 2f, 6.002f)
+        verticalLineToRelative(12f)
+        curveToRelative(0f, 1.1f, 0.9f, 2f, 2f, 2f)
+        horizontalLineToRelative(16f)
+        curveToRelative(1.1f, 0f, 2f, -0.9f, 2f, -2f)
+        verticalLineToRelative(-12f)
+        curveToRelative(0f, -1.1f, -0.9f, -2f, -2f, -2f)
+        horizontalLineToRelative(-3.17f)
+        lineTo(15f, 2f)
+        horizontalLineTo(9f)
+        close()
+    }.build()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,6 +125,8 @@ fun AddItemScreen(
     val loanDatePickerState = rememberDatePickerState()
 
     var showSourceDialog by remember { mutableStateOf(false) }
+    var showUrlDialog by remember { mutableStateOf(false) }
+    var urlInput by remember { mutableStateOf("") }
     var showDetourageConfirmation by remember { mutableStateOf(false) }
     var isProcessingImage by remember { mutableStateOf(false) }
 
@@ -99,11 +137,17 @@ fun AddItemScreen(
     val pendingImageUri = pendingImageUriString?.let { Uri.parse(it) }
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) { pendingImageUriString = uri.toString(); showDetourageConfirmation = true }
+        if (uri != null) {
+            pendingImageUriString = uri.toString()
+            showDetourageConfirmation = true
+        }
     }
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        if (success && tempPhotoUriString != null) { pendingImageUriString = tempPhotoUriString; showDetourageConfirmation = true }
+        if (success && tempPhotoUriString != null) {
+            pendingImageUriString = tempPhotoUriString
+            showDetourageConfirmation = true
+        }
     }
 
     Scaffold(
@@ -128,16 +172,15 @@ fun AddItemScreen(
 
             if (state.properties.isNotEmpty()) {
                 Text(stringResource(R.string.title_specific_info), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
-
-                // CHANGEMENT ICI : Code UI ultra-nettoyé grâce à l'Enum
                 state.properties.forEach { (keyEnum, value) ->
+                    val isMultiLine = keyEnum.isMultiLine
                     OutlinedTextField(
                         value = value,
                         onValueChange = { newValue -> viewModel.updateProperty(keyEnum, newValue) },
                         label = { Text(getLocalizedPropertyLabel(keyEnum.value)) },
-                        modifier = Modifier.fillMaxWidth().then(if (keyEnum.isMultiLine) Modifier.height(120.dp) else Modifier),
-                        maxLines = if (keyEnum.isMultiLine) 5 else 1,
-                        singleLine = !keyEnum.isMultiLine,
+                        modifier = Modifier.fillMaxWidth().then(if (isMultiLine) Modifier.height(120.dp) else Modifier),
+                        maxLines = if (isMultiLine) 5 else 1,
+                        singleLine = !isMultiLine,
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
@@ -212,15 +255,12 @@ fun AddItemScreen(
                 onClick = {
                     if (state.title.isNotBlank() && finalSelectedId != null) {
                         val parsedPrice = state.price.trim().replace(",", ".").toDoubleOrNull() ?: 0.0
-
                         val newItem = CollectionItem(
                             title = state.title.trim(), collectionId = finalSelectedId,
                             purchaseDate = state.purchaseDate.trim(), price = parsedPrice, imageUrl = state.imageUrl,
                             status = state.status, isLoaned = state.isLoaned, loanTo = if (state.isLoaned) state.loanTo.trim() else "", loanDate = if (state.isLoaned) state.loanDate else "",
                             itemType = state.itemType
                         )
-
-                        // CHANGEMENT ICI : On reconvertit l'Enum en String pour la base de données
                         val stringProperties = state.properties.mapKeys { it.key.value }
                         onSaveClick(newItem, state.selectedTags.toList(), stringProperties)
                     }
@@ -232,10 +272,63 @@ fun AddItemScreen(
         if (showPurchaseDatePicker) DatePickerDialog(onDismissRequest = { showPurchaseDatePicker = false }, confirmButton = { TextButton(onClick = { purchaseDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(purchaseDate = dateStr) } }; showPurchaseDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showPurchaseDatePicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = purchaseDatePickerState) }
         if (showLoanDatePicker) DatePickerDialog(onDismissRequest = { showLoanDatePicker = false }, confirmButton = { TextButton(onClick = { loanDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(loanDate = dateStr) } }; showLoanDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showLoanDatePicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = loanDatePickerState) }
 
-        if (showSourceDialog) AlertDialog(onDismissRequest = { showSourceDialog = false }, title = { Text(stringResource(R.string.dialog_illustration_title)) }, text = { Text(stringResource(R.string.dialog_illustration_text)) }, confirmButton = { Button(onClick = { showSourceDialog = false; val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir); val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile); tempPhotoUriString = uri.toString(); cameraLauncher.launch(uri) }) { Text(stringResource(R.string.source_camera)) } }, dismissButton = { Button(onClick = { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text(stringResource(R.string.source_gallery)) } })
+        if (showSourceDialog) AlertDialog(
+            onDismissRequest = { showSourceDialog = false },
+            title = { Text("Source de l'illustration", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; showUrlDialog = true }.padding(8.dp)) {
+                        Icon(imageVector = CustomPlanetIcon, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("URL", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                    // MODIFIÉ ICI : Utilisation de notre CustomCameraIcon sur-mesure !
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
+                        showSourceDialog = false
+                        val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir)
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
+                        tempPhotoUriString = uri.toString()
+                        cameraLauncher.launch(uri)
+                    }.padding(8.dp)) {
+                        Icon(imageVector = CustomCameraIcon, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Appareil", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)) {
+                        Icon(imageVector = CustomRoundedGalleryIcon, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Galerie", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showSourceDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+
+        if (showUrlDialog) {
+            AlertDialog(
+                onDismissRequest = { showUrlDialog = false },
+                title = { Text("Lien de l'image (URL)", fontWeight = FontWeight.Bold) },
+                text = {
+                    OutlinedTextField(
+                        value = urlInput,
+                        onValueChange = { urlInput = it },
+                        label = { Text("Coller l'URL de l'image ici") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        if (urlInput.isNotBlank()) viewModel.updateForm { it.copy(imageUrl = urlInput.trim()) }
+                        showUrlDialog = false
+                    }) { Text("OK") }
+                },
+                dismissButton = { TextButton(onClick = { showUrlDialog = false }) { Text(stringResource(R.string.cancel)) } }
+            )
+        }
 
         if (showDetourageConfirmation) AlertDialog(onDismissRequest = { showDetourageConfirmation = false }, title = { Text(stringResource(R.string.dialog_cutout_title)) }, text = { Text(stringResource(R.string.dialog_cutout_text)) }, confirmButton = { Button(onClick = { showDetourageConfirmation = false; pendingImageUri?.let { uri -> isProcessingImage = true; viewModel.processAndSaveImage(uri, true) { finalUrl -> isProcessingImage = false; if (finalUrl != null) viewModel.updateForm { it.copy(imageUrl = finalUrl) } else Toast.makeText(context, R.string.toast_cutout_error, Toast.LENGTH_SHORT).show() } } }) { Text(stringResource(R.string.btn_yes)) } }, dismissButton = { TextButton(onClick = { showDetourageConfirmation = false; pendingImageUri?.let { uri -> isProcessingImage = true; viewModel.processAndSaveImage(uri, false) { finalUrl -> isProcessingImage = false; if (finalUrl != null) viewModel.updateForm { it.copy(imageUrl = finalUrl) } } } }) { Text(stringResource(R.string.btn_no)) } })
-
         if (showAddTagDialog && finalSelectedId != null) { AddTagDialog(onDismiss = { showAddTagDialog = false }, onConfirm = { tagName -> viewModel.insertTag(tagName, finalSelectedId); showAddTagDialog = false }) }
     }
 }
