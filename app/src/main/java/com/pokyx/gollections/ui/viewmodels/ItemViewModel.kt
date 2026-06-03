@@ -1,8 +1,10 @@
 package com.pokyx.gollections.ui.viewmodels
 
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
 import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.data.ItemType
@@ -45,7 +47,6 @@ object PropertyKeys {
     const val ALBUM = "prop_album"
 }
 
-// CORRECTION : Les dates ne sont plus figées à l'instanciation de la classe
 data class ItemFormState(
     val title: String = "",
     val purchaseDate: String = "",
@@ -63,6 +64,7 @@ data class ItemFormState(
 
 @HiltViewModel
 class ItemViewModel @Inject constructor(
+    private val savedStateHandle: SavedStateHandle, // NOUVEAU : La boîte noire de survie
     private val collectionRepository: CollectionRepository,
     private val itemRepository: ItemRepository,
     private val tagRepository: TagRepository,
@@ -70,13 +72,33 @@ class ItemViewModel @Inject constructor(
     private val insertItemUseCase: InsertItemUseCase,
     private val updateItemUseCase: UpdateItemUseCase,
     private val deleteItemUseCase: DeleteItemUseCase,
-    private val getCollectionPathUseCase: GetCollectionPathUseCase // NOUVELLE INJECTION
+    private val getCollectionPathUseCase: GetCollectionPathUseCase
 ) : ViewModel() {
+
+    private val gson = Gson() // NOUVEAU : Outil de sérialisation
 
     val collections = collectionRepository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _formState = MutableStateFlow(ItemFormState())
+    // NOUVEAU : Restauration de l'état depuis la boîte noire (ou création d'un état vide)
+    private val _formState = MutableStateFlow(
+        savedStateHandle.get<String>("form_state_json")?.let {
+            try {
+                gson.fromJson(it, ItemFormState::class.java)
+            } catch (e: Exception) {
+                ItemFormState()
+            }
+        } ?: ItemFormState()
+    )
     val formState: StateFlow<ItemFormState> = _formState.asStateFlow()
+
+    // NOUVEAU : Mise à jour de l'état ET sauvegarde instantanée dans la boîte noire
+    fun updateForm(transform: (ItemFormState) -> ItemFormState) {
+        _formState.update { oldState ->
+            val newState = transform(oldState)
+            savedStateHandle["form_state_json"] = gson.toJson(newState)
+            newState
+        }
+    }
 
     fun resetFormState(
         preSelectedCollectionId: Long? = null,
@@ -84,33 +106,30 @@ class ItemViewModel @Inject constructor(
         scannedTitle: String? = null,
         scannedImageUrl: String? = null
     ) {
-        // CORRECTION : Délégation de l'algorithme de calcul du chemin au Use Case
         val initialPath = getCollectionPathUseCase(preSelectedCollectionId, collectionsList)
-
-        // CORRECTION : La date est calculée à l'instant T où le formulaire est réinitialisé
         val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
-        _formState.value = ItemFormState(
-            selectedPath = initialPath,
-            title = scannedTitle ?: "",
-            imageUrl = scannedImageUrl ?: "",
-            purchaseDate = currentDate,
-            loanDate = currentDate
-        )
+        // Modifié pour utiliser updateForm (afin de forcer la sauvegarde)
+        updateForm {
+            ItemFormState(
+                selectedPath = initialPath,
+                title = scannedTitle ?: "",
+                imageUrl = scannedImageUrl ?: "",
+                purchaseDate = currentDate,
+                loanDate = currentDate
+            )
+        }
     }
 
-    fun loadItemIntoForm(itemWithTags: com.pokyx.gollections.data.tag.CollectionItemWithTags, collectionsList: List<com.pokyx.gollections.data.Collection>) {
+    fun loadItemIntoForm(itemWithTags: CollectionItemWithTags, collectionsList: List<Collection>) {
         val item = itemWithTags.item
-
-        // Conversion sécurisée du Double vers la String pour le formulaire de saisie
         val priceString = if (item.price > 0.0) item.price.toString().replace(".", ",") else ""
-
         val path = com.pokyx.gollections.utils.buildPathBottomUp(item.collectionId, collectionsList)
 
         updateForm { oldState ->
             oldState.copy(
                 title = item.title,
-                price = priceString, // <--- C'EST CETTE LIGNE QUI EST CORRIGÉE
+                price = priceString,
                 purchaseDate = item.purchaseDate,
                 imageUrl = item.imageUrl,
                 status = item.status,
@@ -123,10 +142,6 @@ class ItemViewModel @Inject constructor(
                 properties = itemWithTags.properties.associate { it.label to it.value }
             )
         }
-    }
-
-    fun updateForm(transform: (ItemFormState) -> ItemFormState) {
-        _formState.update(transform)
     }
 
     fun changeItemType(newType: ItemType) {

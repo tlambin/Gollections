@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable // NOUVEAU
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,11 +91,27 @@ fun AddItemScreen(
     var showSourceDialog by remember { mutableStateOf(false) }
     var showDetourageConfirmation by remember { mutableStateOf(false) }
     var isProcessingImage by remember { mutableStateOf(false) }
-    var tempPhotoUri by remember { mutableStateOf<Uri?>(null) }
-    var pendingImageUri by remember { mutableStateOf<Uri?>(null) }
 
-    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) { pendingImageUri = uri; showDetourageConfirmation = true } }
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success -> if (success && tempPhotoUri != null) { pendingImageUri = tempPhotoUri; showDetourageConfirmation = true } }
+    // CORRECTION ICI : Utilisation de rememberSaveable et conversion String <-> Uri
+    var tempPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
+    val tempPhotoUri = tempPhotoUriString?.let { Uri.parse(it) }
+
+    var pendingImageUriString by rememberSaveable { mutableStateOf<String?>(null) }
+    val pendingImageUri = pendingImageUriString?.let { Uri.parse(it) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            pendingImageUriString = uri.toString()
+            showDetourageConfirmation = true
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success && tempPhotoUri != null) {
+            pendingImageUriString = tempPhotoUriString
+            showDetourageConfirmation = true
+        }
+    }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(state.title.ifBlank { stringResource(R.string.title_new_item) }, fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Default.Close, contentDescription = null) } }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) }
@@ -210,7 +227,6 @@ fun AddItemScreen(
             Button(
                 onClick = {
                     if (state.title.isNotBlank() && finalSelectedId != null) {
-                        // CORRECTION ICI : Conversion sécurisée de la String vers le Double
                         val parsedPrice = state.price.trim().replace(",", ".").toDoubleOrNull() ?: 0.0
 
                         val newItem = CollectionItem(
@@ -229,7 +245,27 @@ fun AddItemScreen(
         if (showPurchaseDatePicker) DatePickerDialog(onDismissRequest = { showPurchaseDatePicker = false }, confirmButton = { TextButton(onClick = { purchaseDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(purchaseDate = dateStr) } }; showPurchaseDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showPurchaseDatePicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = purchaseDatePickerState) }
         if (showLoanDatePicker) DatePickerDialog(onDismissRequest = { showLoanDatePicker = false }, confirmButton = { TextButton(onClick = { loanDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(loanDate = dateStr) } }; showLoanDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showLoanDatePicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = loanDatePickerState) }
 
-        if (showSourceDialog) AlertDialog(onDismissRequest = { showSourceDialog = false }, title = { Text(stringResource(R.string.dialog_illustration_title)) }, text = { Text(stringResource(R.string.dialog_illustration_text)) }, confirmButton = { Button(onClick = { showSourceDialog = false; val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir); tempPhotoUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile); cameraLauncher.launch(tempPhotoUri!!) }) { Text(stringResource(R.string.source_camera)) } }, dismissButton = { Button(onClick = { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text(stringResource(R.string.source_gallery)) } })
+        if (showSourceDialog) AlertDialog(
+            onDismissRequest = { showSourceDialog = false },
+            title = { Text(stringResource(R.string.dialog_illustration_title)) },
+            text = { Text(stringResource(R.string.dialog_illustration_text)) },
+            confirmButton = {
+                Button(onClick = {
+                    showSourceDialog = false
+                    val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir)
+                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
+                    // CORRECTION ICI : On sauvegarde la String avant de lancer la caméra
+                    tempPhotoUriString = uri.toString()
+                    cameraLauncher.launch(uri)
+                }) { Text(stringResource(R.string.source_camera)) }
+            },
+            dismissButton = {
+                Button(onClick = {
+                    showSourceDialog = false;
+                    galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }) { Text(stringResource(R.string.source_gallery)) }
+            }
+        )
 
         if (showDetourageConfirmation) AlertDialog(
             onDismissRequest = { showDetourageConfirmation = false },
