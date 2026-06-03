@@ -15,6 +15,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -33,7 +34,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -51,6 +52,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -121,7 +123,6 @@ fun CollectionDetailScreen(
     val totalValue by remember(collectionId) { viewModel.getTotalValue(collectionId) }.collectAsStateWithLifecycle(initialValue = 0.0)
     val formattedValue = remember(totalValue) { NumberFormat.getCurrencyInstance().format(totalValue) }
 
-    // CORRECTION MAJEURE : On "remember" le Flow pour qu'il ne se recrée pas au scroll
     val pagedItemsFlow = remember(collectionId) { viewModel.getPagedItems(collectionId) }
     val pagedItems = pagedItemsFlow.collectAsLazyPagingItems()
 
@@ -153,24 +154,76 @@ fun CollectionDetailScreen(
             LargeTopAppBar(
                 title = {
                     val collapsedFraction = scrollBehavior.state.collapsedFraction
+
                     if (collapsedFraction > 0.5f) {
-                        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-                            pathCollections.forEachIndexed { index, col ->
-                                val isLast = index == pathCollections.lastIndex
-                                Text(text = col.name, fontWeight = if (isLast) FontWeight.Bold else FontWeight.Medium, fontSize = 16.sp, color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.clickable(!isLast) { onCollectionClick(col.id) })
-                                if (!isLast) Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), modifier = Modifier.padding(horizontal = 4.dp).size(16.dp))
-                            }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = collectionName,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.horizontalScroll(rememberScrollState())) {
                             if (collectionCover.startsWith("file") || collectionCover.startsWith("/") || collectionCover.startsWith("content") || collectionCover.startsWith("http")) {
-                                AsyncImage(model = collectionCover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(40.dp).clip(CircleShape))
+                                AsyncImage(model = collectionCover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(42.dp).clip(CircleShape))
                             } else {
                                 val displayEmoji = if (collectionCover.isNotBlank()) collectionCover else getEmojiForCollection(collectionName)
                                 Text(text = displayEmoji, fontSize = 36.sp)
                             }
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(text = collectionName, fontWeight = FontWeight.Bold)
+                            Text(text = collectionName, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+
+                            if (pathCollections.size > 1) {
+                                // CORRECTION : Fil d'Ariane "Minuscule" avec l'icône de la racine
+                                val rootCol = pathCollections.first()
+                                val breadcrumbText = pathCollections.dropLast(1).joinToString(" > ") { it.name }
+
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                    shape = RoundedCornerShape(50),
+                                    modifier = Modifier.padding(start = 12.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        // Petite bulle icône de la collection mère
+                                        Box(
+                                            modifier = Modifier
+                                                .size(14.dp)
+                                                .background(MaterialTheme.colorScheme.surface, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (rootCol.cover.startsWith("file") || rootCol.cover.startsWith("/") || rootCol.cover.startsWith("content") || rootCol.cover.startsWith("http")) {
+                                                AsyncImage(model = rootCol.cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(CircleShape))
+                                            } else {
+                                                val rootEmoji = if (rootCol.cover.isNotBlank()) rootCol.cover else getEmojiForCollection(rootCol.name)
+                                                Text(text = rootEmoji, fontSize = 9.sp)
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.width(4.dp))
+
+                                        Text(
+                                            text = breadcrumbText,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 10.sp, // Texte minuscule
+                                            fontWeight = FontWeight.Medium,
+                                            modifier = Modifier.padding(end = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 },
@@ -222,19 +275,87 @@ fun CollectionDetailScreen(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
                             shape = CircleShape,
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                            trailingIcon = { if (searchQuery.isNotEmpty()) { IconButton(onClick = { viewModel.updateSearchQuery("") }) { Icon(Icons.Default.Clear, contentDescription = null) } } },
+                            trailingIcon = {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 6.dp)) {
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { viewModel.updateSearchQuery("") }) {
+                                            Icon(Icons.Default.Clear, contentDescription = null)
+                                        }
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .border(2.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null
+                                            ) { Toast.makeText(context, "Favoris bientôt disponibles", Toast.LENGTH_SHORT).show() },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.Favorite, contentDescription = "Favoris", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                                    }
+                                }
+                            },
                             colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant),
                             singleLine = true
                         )
 
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.width(52.dp).height(40.dp).background(if (showTagsRow) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(topEnd = 50.dp, bottomEnd = 50.dp)).clickable { if (dbTags.isNotEmpty()) { showTagsRow = !showTagsRow } else { Toast.makeText(context, "Aucune étiquette dans ce dossier", Toast.LENGTH_SHORT).show() } }, contentAlignment = Alignment.Center) { Icon(LabelIcon, contentDescription = "Tags", tint = if (showTagsRow) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
-                            Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape).clickable { Toast.makeText(context, "Favoris bientôt disponibles", Toast.LENGTH_SHORT).show() }, contentAlignment = Alignment.Center) { Icon(Icons.Default.FavoriteBorder, contentDescription = "Favoris", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
-                            Box(modifier = Modifier.width(85.dp).height(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape), contentAlignment = Alignment.Center) { Text(text = totalCount.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                            Box(modifier = Modifier.width(85.dp).height(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape), contentAlignment = Alignment.Center) { Text(text = formattedValue, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                            Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape).clickable { Toast.makeText(context, "Corbeille bientôt disponible", Toast.LENGTH_SHORT).show() }, contentAlignment = Alignment.Center) { Icon(Icons.Default.Delete, contentDescription = "Corbeille", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Bouton d'action "Tags" (Couleur pleine)
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                                    .clickable {
+                                        if (dbTags.isNotEmpty()) { showTagsRow = !showTagsRow }
+                                        else { Toast.makeText(context, "Aucune étiquette dans ce dossier", Toast.LENGTH_SHORT).show() }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(LabelIcon, contentDescription = "Tags", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
+                            }
+
+                            // CORRECTION : Bulle d'information Quantité (Fond grisâtre "surfaceVariant" + Contour "primaryContainer")
+                            Box(
+                                modifier = Modifier
+                                    .height(44.dp)
+                                    .width(90.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape) // Retour du fond gris !
+                                    .border(2.5.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(text = totalCount.toString(), color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+
+                            // CORRECTION : Bulle d'information Valeur (Fond grisâtre "surfaceVariant" + Contour "primaryContainer")
+                            Box(
+                                modifier = Modifier
+                                    .height(44.dp)
+                                    .width(90.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape) // Retour du fond gris !
+                                    .border(2.5.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(text = formattedValue, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+
+                            // Bouton d'action "Trier" (Couleur pleine)
                             Box {
-                                Box(modifier = Modifier.width(52.dp).height(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(topStart = 50.dp, bottomStart = 50.dp)).clickable { showSortMenu = true }, contentAlignment = Alignment.Center) { Icon(FilterListIcon, contentDescription = "Trier", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                                        .clickable { showSortMenu = true },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(FilterListIcon, contentDescription = "Trier", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
+                                }
                                 DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                                     DropdownMenuItem(text = { Text(stringResource(R.string.sort_name_asc)) }, onClick = { viewModel.updateSortOption(SortOption.NAME_ASC.name); showSortMenu = false })
                                     DropdownMenuItem(text = { Text(stringResource(R.string.sort_name_desc)) }, onClick = { viewModel.updateSortOption(SortOption.NAME_DESC.name); showSortMenu = false })
@@ -274,7 +395,6 @@ fun CollectionDetailScreen(
                         item { Text(stringResource(R.string.title_items), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 24.dp)) }
                     }
 
-                    // CORRECTION 2 : On ne montre "Collection vide" que si le chargement Paging est vraiment terminé
                     val isPagingLoading = pagedItems.loadState.refresh is LoadState.Loading
 
                     if (pagedItems.itemCount == 0 && subCollections.isEmpty() && !isPagingLoading) {
@@ -312,7 +432,17 @@ fun CollectionDetailScreen(
                     }
                 }
             }
-            if (isFabExpanded) { Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { isFabExpanded = false }) }
+            if (isFabExpanded) {
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { isFabExpanded = false }
+                )
+            }
         }
     }
 
