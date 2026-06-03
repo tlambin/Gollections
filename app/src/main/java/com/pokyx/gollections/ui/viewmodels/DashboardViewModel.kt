@@ -7,7 +7,7 @@ import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ImageProcessorRepository
 import com.pokyx.gollections.data.repository.ItemRepository
-import com.pokyx.gollections.data.tag.CollectionItemWithTags
+import com.pokyx.gollections.domain.usecase.GetCollectionDescendantsUseCase // <-- NOUVEL IMPORT
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,7 +28,8 @@ class DashboardViewModel @Inject constructor(
     private val collectionRepository: CollectionRepository,
     private val itemRepository: ItemRepository,
     private val imageProcessor: ImageProcessorRepository,
-    private val barcodeRepository: BarcodeRepository
+    private val barcodeRepository: BarcodeRepository,
+    private val getCollectionDescendantsUseCase: GetCollectionDescendantsUseCase // <-- NOUVELLE INJECTION
 ) : ViewModel() {
 
     val allItemsWithTags = itemRepository.getAllItemsWithTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -38,7 +39,9 @@ class DashboardViewModel @Inject constructor(
     val collectionItemCounts = combine(collections, allItemsWithTags) { allColls, allItems ->
         val counts = mutableMapOf<Long, Int>()
         for (collection in allColls) {
-            counts[collection.id] = calculateRecursiveItemCount(collection.id, allColls, allItems)
+            // UTILISATION DU USE CASE ICI
+            val descendantIds = getCollectionDescendantsUseCase(collection.id, allColls)
+            counts[collection.id] = allItems.count { it.item.collectionId in descendantIds }
         }
         counts
     }
@@ -56,13 +59,6 @@ class DashboardViewModel @Inject constructor(
 
     fun insertCollection(name: String, cover: String = "", parentId: Long? = null) {
         viewModelScope.launch(Dispatchers.IO) { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) }
-    }
-
-    private fun calculateRecursiveItemCount(collectionId: Long, allCollections: List<Collection>, allItems: List<CollectionItemWithTags>): Int {
-        val descendantIds = mutableListOf(collectionId)
-        var currentLevel = allCollections.filter { it.parentId == collectionId }.map { it.id }
-        while (currentLevel.isNotEmpty()) { descendantIds.addAll(currentLevel); currentLevel = allCollections.filter { it.parentId in currentLevel }.map { it.id } }
-        return allItems.count { it.item.collectionId in descendantIds }
     }
 
     fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {

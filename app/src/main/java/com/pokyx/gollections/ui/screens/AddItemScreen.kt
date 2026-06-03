@@ -38,10 +38,10 @@ import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.data.ItemType
 import com.pokyx.gollections.data.tag.Tag
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
-import com.pokyx.gollections.ui.viewmodels.PropertyKeys // <-- NOUVEL IMPORT
+import com.pokyx.gollections.ui.viewmodels.PropertyKeys
 import com.pokyx.gollections.utils.AddTagDialog
 import com.pokyx.gollections.utils.getDynamicStatusOptions
-import com.pokyx.gollections.utils.getLocalizedPropertyLabel // <-- NOUVEL IMPORT
+import com.pokyx.gollections.utils.getLocalizedPropertyLabel
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -102,12 +102,12 @@ fun AddItemScreen(
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
 
             Box(modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)).clickable(enabled = !isProcessingImage) { showSourceDialog = true }, contentAlignment = Alignment.Center) {
-                if (isProcessingImage) { Column(horizontalAlignment = Alignment.CenterHorizontally) { CircularProgressIndicator(); Spacer(modifier = Modifier.height(8.dp)); Text("Détourage...", fontSize = 12.sp) } }
+                if (isProcessingImage) { Column(horizontalAlignment = Alignment.CenterHorizontally) { CircularProgressIndicator(); Spacer(modifier = Modifier.height(8.dp)); Text(stringResource(R.string.text_processing_cutout), fontSize = 12.sp) } }
                 else if (state.imageUrl.isNotBlank()) AsyncImage(model = state.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                 else { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("📸", fontSize = 40.sp); Spacer(modifier = Modifier.height(4.dp)); Text(stringResource(R.string.dialog_illustration_text), color = MaterialTheme.colorScheme.outline, fontSize = 13.sp) } }
             }
 
-            Text("Type d'objet", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(stringResource(R.string.title_item_type), fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ItemType.values().forEach { type ->
                     FilterChip(
@@ -120,16 +120,15 @@ fun AddItemScreen(
 
             OutlinedTextField(value = state.title, onValueChange = { text -> viewModel.updateForm { it.copy(title = text) } }, label = { Text(stringResource(R.string.label_title)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
-            // CORRECTION DE L'AFFICHAGE DYNAMIQUE DES PROPRIETES
+            // AFFICHAGE DYNAMIQUE DES PROPRIETES
             if (state.properties.isNotEmpty()) {
-                Text("Informations spécifiques", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
+                Text(stringResource(R.string.title_specific_info), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
                 state.properties.forEach { (labelKey, value) ->
-                    // On utilise les clés techniques pour vérifier si le champ doit être multi-lignes
                     val isMultiLine = labelKey in listOf(PropertyKeys.SYNOPSIS, PropertyKeys.SUMMARY, PropertyKeys.DESCRIPTION)
                     OutlinedTextField(
                         value = value,
                         onValueChange = { newValue -> viewModel.updateProperty(labelKey, newValue) },
-                        label = { Text(getLocalizedPropertyLabel(labelKey)) }, // Traduction de la clé pour l'affichage
+                        label = { Text(getLocalizedPropertyLabel(labelKey)) },
                         modifier = Modifier.fillMaxWidth().then(if (isMultiLine) Modifier.height(120.dp) else Modifier),
                         maxLines = if (isMultiLine) 5 else 1,
                         singleLine = !isMultiLine,
@@ -245,7 +244,7 @@ fun AddItemScreen(
                             else Toast.makeText(context, R.string.toast_cutout_error, Toast.LENGTH_SHORT).show()
                         }
                     }
-                }) { Text("Oui") }
+                }) { Text(stringResource(R.string.btn_yes)) }
             },
             dismissButton = {
                 TextButton(onClick = {
@@ -257,7 +256,7 @@ fun AddItemScreen(
                             if (finalUrl != null) viewModel.updateForm { it.copy(imageUrl = finalUrl) }
                         }
                     }
-                }) { Text("Non") }
+                }) { Text(stringResource(R.string.btn_no)) }
             }
         )
 

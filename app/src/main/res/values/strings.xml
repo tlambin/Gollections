@@ -126,4 +126,10 @@
     <string name="prop_description">Description</string>
     <string name="prop_artist">Artiste</string>
     <string name="prop_album">Album</string>
+
+    <string name="title_item_type">Type d\'objet</string>
+    <string name="title_specific_info">Informations spécifiques</string>
+    <string name="text_processing_cutout">Détourage...</string>
+    <string name="btn_yes">Oui</string>
+    <string name="btn_no">Non</string>
 </resources>
