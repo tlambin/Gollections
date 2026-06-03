@@ -8,6 +8,7 @@ import com.pokyx.gollections.data.CollectionItemDao
 import com.pokyx.gollections.data.ItemProperty
 import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
+import com.pokyx.gollections.data.tag.Tag
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -32,10 +33,17 @@ class ItemRepository @Inject constructor(
     suspend fun updateItem(item: CollectionItem) = itemDao.updateItem(item)
     suspend fun deleteItem(item: CollectionItem) = itemDao.deleteItem(item)
 
+    // --- NOUVEAU : Exposer les fonctions transactionnelles complètes ---
+    suspend fun insertItemComplete(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>): Long =
+        itemDao.insertItemComplete(item, tags, properties)
+
+    suspend fun updateItemComplete(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) =
+        itemDao.updateItemComplete(item, tags, properties)
+    // -------------------------------------------------------------------
+
     suspend fun clearTagsForItem(itemId: Int) = itemDao.clearTagsForItem(itemId)
     suspend fun clearPropertiesForItem(itemId: Int) = itemDao.clearPropertiesForItem(itemId)
     suspend fun insertItemTagCrossRef(crossRef: CollectionItemTagCrossRef) = itemDao.insertItemTagCrossRef(crossRef)
-
     suspend fun insertProperties(properties: List<ItemProperty>) = itemDao.insertProperties(properties)
 
     suspend fun getItemsWithTagSync(tagName: String): List<CollectionItemWithTags> = itemDao.getItemsWithTagSync(tagName)
@@ -47,7 +55,6 @@ class ItemRepository @Inject constructor(
     fun getTotalItemsCount(): Flow<Int> = itemDao.getTotalItemsCount()
     fun getLoanedItemsCount(): Flow<Int> = itemDao.getLoanedItemsCount()
 
-    // NOUVELLE FONCTION EXPOSÉE
     fun getItemCountsPerCollection() = itemDao.getItemCountsPerCollection()
 
     fun getPagedItemsWithFilters(

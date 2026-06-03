@@ -9,9 +9,9 @@ import androidx.room.Transaction
 import androidx.room.Update
 import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
+import com.pokyx.gollections.data.tag.Tag
 import kotlinx.coroutines.flow.Flow
 
-// NOUVELLE DATA CLASS POUR COMPTER RAPIDEMENT
 data class CollectionItemCount(
     val collectionId: Long,
     val count: Int
@@ -66,7 +66,6 @@ interface CollectionItemDao {
     @Query("DELETE FROM item_properties WHERE itemId = :itemId")
     suspend fun clearPropertiesForItem(itemId: Int)
 
-    // REQUÊTES D'OPTIMISATION MÉMOIRE (Étape 1 & 2)
     @Query("SELECT COUNT(*) FROM collection_items WHERE collectionId IN (:collectionIds)")
     fun getItemsCountByCollectionIds(collectionIds: List<Long>): Flow<Int>
 
@@ -83,7 +82,6 @@ interface CollectionItemDao {
     @Query("SELECT COUNT(*) FROM collection_items WHERE isLoaned = 1")
     fun getLoanedItemsCount(): Flow<Int>
 
-    // NOUVELLE REQUÊTE POUR LE DASHBOARD (GROUP BY)
     @Query("SELECT collectionId, COUNT(id) as count FROM collection_items GROUP BY collectionId")
     fun getItemCountsPerCollection(): Flow<List<CollectionItemCount>>
 
@@ -120,4 +118,54 @@ interface CollectionItemDao {
         tagFilter: String,
         sortOption: String
     ): androidx.paging.PagingSource<Int, CollectionItemWithTags>
+
+    // --- NOUVEAU : TRANSACTIONS SÉCURISÉES ---
+
+    @Transaction
+    suspend fun insertItemComplete(
+        item: CollectionItem,
+        tags: List<Tag>,
+        properties: Map<String, String>
+    ): Long {
+        // 1. Sauvegarde de l'item ET récupération de son ID
+        val itemId = insertItem(item).toInt()
+
+        // 2. Création et sauvegarde des liens de Tags
+        tags.forEach { tag ->
+            insertItemTagCrossRef(CollectionItemTagCrossRef(itemId, tag.id))
+        }
+
+        // 3. Création et sauvegarde des Propriétés
+        val itemProperties = properties.map { (key, value) ->
+            ItemProperty(itemId = itemId, label = key, value = value)
+        }
+        if (itemProperties.isNotEmpty()) {
+            insertProperties(itemProperties)
+        }
+
+        return itemId.toLong()
+    }
+
+    @Transaction
+    suspend fun updateItemComplete(
+        item: CollectionItem,
+        tags: List<Tag>,
+        properties: Map<String, String>
+    ) {
+        updateItem(item)
+        val itemId = item.id // On utilise l'ID existant de l'item
+
+        clearTagsForItem(itemId)
+        tags.forEach { tag ->
+            insertItemTagCrossRef(CollectionItemTagCrossRef(itemId, tag.id))
+        }
+
+        clearPropertiesForItem(itemId)
+        val itemProperties = properties.map { (key, value) ->
+            ItemProperty(itemId = itemId, label = key, value = value)
+        }
+        if (itemProperties.isNotEmpty()) {
+            insertProperties(itemProperties)
+        }
+    }
 }
