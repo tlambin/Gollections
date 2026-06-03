@@ -65,6 +65,16 @@ class CollectionDetailViewModel @Inject constructor(
     fun updateCollectionParent(id: Long, newParentId: Long?) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.updateParentId(id, newParentId) } }
     fun updateCollection(collection: Collection) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.updateCollection(collection) } }
 
+    // NOUVEAU : Fonction pour mettre à jour la Collection avec son nom ET son image/URL
+    fun updateCollection(collectionId: Long, newName: String, newCover: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val collection = collectionRepository.getCollectionById(collectionId)
+            if (collection != null) {
+                collectionRepository.updateCollection(collection.copy(name = newName, cover = newCover))
+            }
+        }
+    }
+
     fun getValidMoveDestinations(collectionId: Long, allCollections: List<Collection>): List<Collection> {
         val descendantIds = getCollectionDescendantsUseCase(collectionId, allCollections)
         return allCollections.filter { it.id !in descendantIds }
