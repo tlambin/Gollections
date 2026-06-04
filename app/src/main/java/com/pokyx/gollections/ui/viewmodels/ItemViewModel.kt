@@ -32,7 +32,6 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
-// NOUVEAU : Un Enum robuste qui contient la logique UI (isMultiLine)
 enum class ItemPropertyKey(val value: String, val isMultiLine: Boolean = false) {
     DIRECTOR("prop_director"),
     RELEASE_DATE("prop_release_date"),
@@ -48,24 +47,22 @@ enum class ItemPropertyKey(val value: String, val isMultiLine: Boolean = false) 
     ALBUM("prop_album");
 
     companion object {
-        // Fonction utilitaire pour retrouver l'Enum depuis la BDD
         fun fromValue(value: String): ItemPropertyKey? = values().find { it.value == value }
     }
 }
 
 data class ItemFormState(
     val title: String = "",
+    val itemType: ItemType = ItemType.OTHER,
+    val selectedPath: List<Long> = emptyList(),
     val purchaseDate: String = "",
     val price: String = "",
-    val status: String = "",
+    val imageUrl: String = "",
     val isLoaned: Boolean = false,
     val loanTo: String = "",
     val loanDate: String = "",
-    val imageUrl: String = "",
-    val selectedPath: List<Long> = emptyList(),
+    val status: String = "Non commencé",
     val selectedTags: Set<Tag> = emptySet(),
-    val itemType: ItemType = ItemType.OTHER,
-    // NOUVEAU : Le dictionnaire est maintenant fortement typé
     val properties: Map<ItemPropertyKey, String> = emptyMap()
 )
 
@@ -130,7 +127,6 @@ class ItemViewModel @Inject constructor(
         val priceString = if (item.price > 0.0) item.price.toString().replace(".", ",") else ""
         val path = com.pokyx.gollections.utils.buildPathBottomUp(item.collectionId, collectionsList)
 
-        // NOUVEAU : Conversion propre des chaînes de la BDD vers l'Enum
         val mappedProperties = itemWithTags.properties.mapNotNull { prop ->
             ItemPropertyKey.fromValue(prop.label)?.let { it to prop.value }
         }.toMap()

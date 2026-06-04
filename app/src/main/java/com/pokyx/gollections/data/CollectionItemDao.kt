@@ -168,4 +168,27 @@ interface CollectionItemDao {
             insertProperties(itemProperties)
         }
     }
+
+    // --- NOUVELLES REQUÊTES OPTIMISÉES (CTE RÉCURSIVES) ---
+
+
+    @Query("""
+        WITH RECURSIVE CollectionTree AS (
+            SELECT id FROM collections WHERE id = :collectionId
+            UNION ALL
+            SELECT c.id FROM collections c INNER JOIN CollectionTree ct ON c.parentId = ct.id
+        )
+        SELECT COUNT(id) FROM collection_items WHERE collectionId IN CollectionTree
+    """)
+    fun getTotalCountRecursive(collectionId: Long): kotlinx.coroutines.flow.Flow<Int>
+
+    @Query("""
+        WITH RECURSIVE CollectionTree AS (
+            SELECT id FROM collections WHERE id = :collectionId
+            UNION ALL
+            SELECT c.id FROM collections c INNER JOIN CollectionTree ct ON c.parentId = ct.id
+        )
+        SELECT SUM(price) FROM collection_items WHERE collectionId IN CollectionTree
+    """)
+    fun getTotalValueRecursive(collectionId: Long): kotlinx.coroutines.flow.Flow<Double?>
 }

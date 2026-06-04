@@ -29,6 +29,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 
 @HiltViewModel
 class CollectionDetailViewModel @Inject constructor(
@@ -47,17 +48,15 @@ class CollectionDetailViewModel @Inject constructor(
     fun getItemsByCollectionWithTags(collectionId: Long): Flow<List<CollectionItemWithTags>> = itemRepository.getItemsByCollectionWithTags(collectionId)
     suspend fun getCollectionById(id: Long): Collection? = collectionRepository.getCollectionById(id)
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun getTotalCount(collectionId: Long): Flow<Int> = allCollections.flatMapLatest { collections ->
-        val descendantIds = getCollectionDescendantsUseCase(collectionId, collections)
-        if (descendantIds.isEmpty()) flowOf(0) else itemRepository.getItemsCountByCollectionIds(descendantIds)
-    }.flowOn(Dispatchers.Default)
+    fun getTotalCount(collectionId: Long): Flow<Int> {
+        return itemRepository.getTotalCountRecursive(collectionId).flowOn(Dispatchers.IO)
+    }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun getTotalValue(collectionId: Long): Flow<Double> = allCollections.flatMapLatest { collections ->
-        val descendantIds = getCollectionDescendantsUseCase(collectionId, collections)
-        if (descendantIds.isEmpty()) flowOf(0.0) else itemRepository.getItemsTotalValueByCollectionIds(descendantIds)
-    }.flowOn(Dispatchers.Default)
+    fun getTotalValue(collectionId: Long): Flow<Double> {
+        return itemRepository.getTotalValueRecursive(collectionId)
+            .map { it ?: 0.0 } // Si le dossier est vide, la DB renvoie null, on le transforme en 0.0
+            .flowOn(Dispatchers.IO)
+    }
 
     fun insertCollection(name: String, cover: String = "", parentId: Long? = null) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) } }
     fun deleteCollection(collectionId: Long) { viewModelScope.launch(Dispatchers.IO) { deleteCollectionUseCase(collectionId, allCollections.value) } }
