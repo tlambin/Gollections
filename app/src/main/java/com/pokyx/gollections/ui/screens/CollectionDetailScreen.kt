@@ -1,6 +1,5 @@
 package com.pokyx.gollections.ui.screens
 
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -42,7 +41,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
@@ -58,6 +60,7 @@ import com.pokyx.gollections.ui.viewmodels.ScanEvent
 import com.pokyx.gollections.utils.BarcodeScanner
 import com.pokyx.gollections.utils.buildPathBottomUp
 import com.pokyx.gollections.utils.getEmojiForCollection
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 
 enum class SortOption { NAME_ASC, NAME_DESC, PRICE_ASC, PRICE_DESC, DATE_DESC, DATE_ASC }
@@ -75,6 +78,7 @@ fun CollectionDetailScreen(
     onCollectionClick: (Long) -> Unit
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val allCollections by viewModel.allCollections.collectAsStateWithLifecycle()
 
     val currentCollection = allCollections.find { it.id == collectionId }
@@ -116,31 +120,35 @@ fun CollectionDetailScreen(
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    val errorScanSearchingText = stringResource(R.string.error_scan_searching)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
-    // --- GESTION RÉACTIVE DU SCAN ---
-    val scanEvent by viewModel.scanEvent.collectAsStateWithLifecycle()
+    val msgSearching = stringResource(R.string.error_scan_searching)
+    val msgLimit = stringResource(R.string.error_scan_limit)
+    val msgNotFound = stringResource(R.string.error_scan_not_found)
 
-    LaunchedEffect(scanEvent) {
-        when (val event = scanEvent) {
-            is ScanEvent.Searching -> {
-                Toast.makeText(context, errorScanSearchingText, Toast.LENGTH_SHORT).show()
+    LaunchedEffect(viewModel.scanEvent, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.scanEvent.collect { event ->
+                when (event) {
+                    is ScanEvent.Searching -> {
+                        scope.launch { snackbarHostState.showSnackbar(msgSearching, duration = SnackbarDuration.Short) }
+                    }
+                    is ScanEvent.Success -> {
+                        onAddItemClick(event.title, event.imageUrl)
+                    }
+                    is ScanEvent.Error -> {
+                        val msg = if (event.message == "error_scan_limit") msgLimit else msgNotFound
+                        scope.launch { snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Long) }
+                    }
+                }
             }
-            is ScanEvent.Success -> {
-                onAddItemClick(event.title, event.imageUrl)
-                viewModel.resetScanEvent()
-            }
-            is ScanEvent.Error -> {
-                val toastMsgId = if (event.message == "error_scan_limit") R.string.error_scan_limit else R.string.error_scan_not_found
-                Toast.makeText(context, toastMsgId, Toast.LENGTH_LONG).show()
-                viewModel.resetScanEvent()
-            }
-            is ScanEvent.Idle -> {}
         }
     }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Box(modifier = Modifier.fillMaxWidth()) {
                 LargeTopAppBar(
@@ -185,45 +193,14 @@ fun CollectionDetailScreen(
                 val collapsedFraction = scrollBehavior.state.collapsedFraction
 
                 if (collapsedFraction > 0.5f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .height(64.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = collectionName,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 72.dp)
-                        )
+                    Box(modifier = Modifier.fillMaxWidth().statusBarsPadding().height(64.dp), contentAlignment = Alignment.Center) {
+                        Text(text = collectionName, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 72.dp))
                     }
                 }
                 else if (pathCollections.size > 1) {
                     val breadcrumbText = pathCollections.dropLast(1).joinToString(" > ") { it.name }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .height(64.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = breadcrumbText,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 72.dp)
-                        )
+                    Box(modifier = Modifier.fillMaxWidth().statusBarsPadding().height(64.dp), contentAlignment = Alignment.Center) {
+                        Text(text = breadcrumbText, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 72.dp))
                     }
                 }
             }
@@ -236,10 +213,7 @@ fun CollectionDetailScreen(
                 onScanClick = {
                     isFabExpanded = false
                     val barcodeScanner = BarcodeScanner(context)
-                    barcodeScanner.startScan(
-                        onScanSuccess = { barcode -> viewModel.fetchItemFromBarcode(barcode) },
-                        onScanFailure = { }
-                    )
+                    barcodeScanner.startScan(onScanSuccess = { barcode -> viewModel.fetchItemFromBarcode(barcode) }, onScanFailure = { })
                 },
                 onCreateFolderClick = { isFabExpanded = false; showAddSubCollectionDialog = true },
                 onAddItemClick = { isFabExpanded = false; onAddItemClick(null, null) }
@@ -267,18 +241,13 @@ fun CollectionDetailScreen(
                             trailingIcon = {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 6.dp)) {
                                     if (searchQuery.isNotEmpty()) {
-                                        IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                            Icon(Icons.Default.Clear, contentDescription = null)
-                                        }
+                                        IconButton(onClick = { viewModel.updateSearchQuery("") }) { Icon(Icons.Default.Clear, contentDescription = null) }
                                     }
                                     Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .border(2.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                            .clickable(
-                                                interactionSource = remember { MutableInteractionSource() },
-                                                indication = null
-                                            ) { Toast.makeText(context, "Favoris bientôt disponibles", Toast.LENGTH_SHORT).show() },
+                                        modifier = Modifier.size(40.dp).border(2.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                                scope.launch { snackbarHostState.showSnackbar("Favoris bientôt disponibles", duration = SnackbarDuration.Short) }
+                                            },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(Icons.Default.Favorite, contentDescription = "Favoris", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -289,56 +258,22 @@ fun CollectionDetailScreen(
                             singleLine = true
                         )
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
-                                    .clickable {
-                                        if (dbTags.isNotEmpty()) { showTagsRow = !showTagsRow }
-                                        else { Toast.makeText(context, "Aucune étiquette dans ce dossier", Toast.LENGTH_SHORT).show() }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(LabelIcon, contentDescription = "Tags", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
-                            }
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(44.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape).clickable {
+                                if (dbTags.isNotEmpty()) { showTagsRow = !showTagsRow }
+                                else { scope.launch { snackbarHostState.showSnackbar("Aucune étiquette dans ce dossier", duration = SnackbarDuration.Short) } }
+                            }, contentAlignment = Alignment.Center
+                            ) { Icon(LabelIcon, contentDescription = "Tags", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp)) }
 
-                            Box(
-                                modifier = Modifier
-                                    .height(44.dp)
-                                    .width(90.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                                    .border(2.5.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape)
-                                    .padding(horizontal = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
+                            Box(modifier = Modifier.height(44.dp).width(90.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape).border(2.5.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
                                 Text(text = totalCount.toString(), color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
-
-                            Box(
-                                modifier = Modifier
-                                    .height(44.dp)
-                                    .width(90.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                                    .border(2.5.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape)
-                                    .padding(horizontal = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
+                            Box(modifier = Modifier.height(44.dp).width(90.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape).border(2.5.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
                                 Text(text = formattedValue, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
 
                             Box {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
-                                        .clickable { showSortMenu = true },
-                                    contentAlignment = Alignment.Center
-                                ) {
+                                Box(modifier = Modifier.size(44.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape).clickable { showSortMenu = true }, contentAlignment = Alignment.Center) {
                                     Icon(FilterListIcon, contentDescription = "Trier", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
                                 }
                                 DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
@@ -384,10 +319,7 @@ fun CollectionDetailScreen(
                 if (pagedItems.itemCount == 0 && subCollections.isEmpty() && !isPagingLoading) {
                     item { Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.empty_folder), color = MaterialTheme.colorScheme.outline) } }
                 } else {
-                    items(
-                        count = pagedItems.itemCount,
-                        key = { index -> pagedItems[index]?.item?.id ?: index }
-                    ) { index ->
+                    items(count = pagedItems.itemCount, key = { index -> pagedItems[index]?.item?.id ?: index }) { index ->
                         val itemWithTags = pagedItems[index]
                         if (itemWithTags != null) {
                             val item = itemWithTags.item
@@ -416,17 +348,8 @@ fun CollectionDetailScreen(
                 }
             }
 
-            // Assombri l'arrière plan si le FAB est ouvert
             if (isFabExpanded) {
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.4f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { isFabExpanded = false }
-                )
+                Spacer(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { isFabExpanded = false })
             }
         }
     }
@@ -442,20 +365,7 @@ fun CollectionDetailScreen(
         }
     }
 
-    if (showEditCollectionDialog) {
-        CollectionDialog(
-            title = stringResource(R.string.rename),
-            initialName = collectionName,
-            initialCover = collectionCover,
-            onDismiss = { showEditCollectionDialog = false },
-            onConfirm = { name, cover ->
-                viewModel.updateCollection(collectionId, name, cover)
-                showEditCollectionDialog = false
-            },
-            onProcessImage = { uri, cutout, callback -> viewModel.processAndSaveImage(uri, cutout, callback) }
-        )
-    }
-
+    if (showEditCollectionDialog) { CollectionDialog(title = stringResource(R.string.rename), initialName = collectionName, initialCover = collectionCover, onDismiss = { showEditCollectionDialog = false }, onConfirm = { name, cover -> viewModel.updateCollection(collectionId, name, cover); showEditCollectionDialog = false }, onProcessImage = { uri, cutout, callback -> viewModel.processAndSaveImage(uri, cutout, callback) }) }
     if (showAddSubCollectionDialog) { CollectionDialog(title = stringResource(R.string.new_subfolder_title), onDismiss = { showAddSubCollectionDialog = false }, onConfirm = { name, cover -> viewModel.insertCollection(name = name, cover = cover, parentId = collectionId); showAddSubCollectionDialog = false }, onProcessImage = { uri, cutout, callback -> viewModel.processAndSaveImage(uri, cutout, callback) }) }
     if (showMoveDialog) { val validDestinations = viewModel.getValidMoveDestinations(collectionId, allCollections); AlertDialog(onDismissRequest = { showMoveDialog = false }, title = { Text(stringResource(R.string.move_folder)) }, text = { LazyColumn(modifier = Modifier.fillMaxWidth()) { item { ListItem(headlineContent = { Text(stringResource(R.string.move_to_root), fontWeight = FontWeight.Bold) }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, null); showMoveDialog = false }); HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }; items(validDestinations) { dest -> ListItem(headlineContent = { Text("📁 ${dest.name}") }, modifier = Modifier.clickable { viewModel.updateCollectionParent(collectionId, dest.id); showMoveDialog = false }) } } }, confirmButton = { TextButton(onClick = { showMoveDialog = false }) { Text(stringResource(R.string.cancel)) } }) }
     if (showTagOptionsDialog) AlertDialog(onDismissRequest = { showTagOptionsDialog = false }, title = { Text(stringResource(R.string.tag_options_title, selectedTagToManage)) }, text = { Text(stringResource(R.string.tag_options_subtitle)) }, confirmButton = { Button(onClick = { renameTagInput = selectedTagToManage; showTagOptionsDialog = false; showRenameTagDialog = true }) { Text(stringResource(R.string.rename)) } }, dismissButton = { Button(onClick = { showTagOptionsDialog = false; showDeleteTagDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.delete_folder).replace("le dossier", "")) } })

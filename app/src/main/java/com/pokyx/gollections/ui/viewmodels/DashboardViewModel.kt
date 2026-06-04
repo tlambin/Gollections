@@ -13,6 +13,7 @@ import com.pokyx.gollections.domain.usecase.ScanBarcodeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,13 +21,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// NOUVEAU : Une structure d'état propre pour gérer la recherche par code-barres
 sealed class ScanEvent {
-    object Idle : ScanEvent()
     object Searching : ScanEvent()
     data class Success(val title: String?, val imageUrl: String?) : ScanEvent()
     data class Error(val message: String) : ScanEvent()
@@ -67,9 +67,9 @@ class DashboardViewModel @Inject constructor(
         if (query.isBlank()) flowOf(emptyList()) else itemRepository.searchItemsWithTags(query)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // NOUVEAU : État réactif du scanner pour l'UI
-    private val _scanEvent = MutableStateFlow<ScanEvent>(ScanEvent.Idle)
-    val scanEvent = _scanEvent.asStateFlow()
+    // UTILISATION D'UN CHANNEL POUR LES ÉVÉNEMENTS UNIQUES
+    private val _scanEvent = Channel<ScanEvent>()
+    val scanEvent = _scanEvent.receiveAsFlow()
 
     fun updateSearchQuery(query: String) { _searchQuery.value = query }
 
@@ -84,21 +84,16 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    // CORRIGÉ : On n'utilise plus de callback imbriqué, on met à jour l'état métier
     fun fetchItemFromBarcode(barcode: String) {
-        _scanEvent.value = ScanEvent.Searching
         viewModelScope.launch {
+            // Utilisation de .send() au lieu de .value pour un Channel
+            _scanEvent.send(ScanEvent.Searching)
             val result = scanBarcodeUseCase(barcode)
             if (result.title != null) {
-                _scanEvent.value = ScanEvent.Success(result.title, result.imageUrl)
+                _scanEvent.send(ScanEvent.Success(result.title, result.imageUrl))
             } else {
-                _scanEvent.value = ScanEvent.Error(result.errorMsg ?: "error_scan_not_found")
+                _scanEvent.send(ScanEvent.Error(result.errorMsg ?: "error_scan_not_found"))
             }
         }
-    }
-
-    // NOUVEAU : Permet à l'UI de remettre l'état à zéro après traitement
-    fun resetScanEvent() {
-        _scanEvent.value = ScanEvent.Idle
     }
 }

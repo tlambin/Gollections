@@ -1,6 +1,5 @@
 package com.pokyx.gollections.ui.screens
 
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -30,7 +29,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.data.Collection as DBCollection
@@ -41,12 +43,13 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
 import com.pokyx.gollections.ui.components.CollectionDialog
 import com.pokyx.gollections.ui.viewmodels.DashboardViewModel
-import com.pokyx.gollections.ui.viewmodels.ScanEvent // NOUVEL IMPORT
+import com.pokyx.gollections.ui.viewmodels.ScanEvent
 import com.pokyx.gollections.utils.BarcodeScanner
 import com.pokyx.gollections.utils.getEmojiForCollection
 import com.pokyx.gollections.utils.getUnitForCollection
 import com.pokyx.gollections.ui.components.*
 import androidx.compose.material.icons.filled.Person
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +60,7 @@ fun DashboardScreen(
     viewModel: DashboardViewModel
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val rootCollections by viewModel.rootCollections.collectAsStateWithLifecycle()
     val allCollections by viewModel.collections.collectAsStateWithLifecycle()
@@ -68,35 +72,41 @@ fun DashboardScreen(
     val searchResultsWithTags by viewModel.searchedItemsWithTags.collectAsStateWithLifecycle()
     val collectionCounts by viewModel.collectionItemCounts.collectAsStateWithLifecycle()
 
-    // NOUVEAU : On observe l'état du scan
-    val scanEvent by viewModel.scanEvent.collectAsStateWithLifecycle()
-
     var showAddCollectionDialog by remember { mutableStateOf(false) }
     var isFabExpanded by remember { mutableStateOf(false) }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    // NOUVEAU : Gestion des effets secondaires (Toast, Navigation) basée sur l'état du scan
-    LaunchedEffect(scanEvent) {
-        when (val event = scanEvent) {
-            is ScanEvent.Searching -> {
-                Toast.makeText(context, R.string.error_scan_searching, Toast.LENGTH_SHORT).show()
+    // --- MISE À JOUR : Gestion des Snackbars ---
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    val msgSearching = stringResource(R.string.error_scan_searching)
+    val msgLimit = stringResource(R.string.error_scan_limit)
+    val msgNotFound = stringResource(R.string.error_scan_not_found)
+
+    LaunchedEffect(viewModel.scanEvent, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.scanEvent.collect { event ->
+                when (event) {
+                    is ScanEvent.Searching -> {
+                        scope.launch { snackbarHostState.showSnackbar(msgSearching, duration = SnackbarDuration.Short) }
+                    }
+                    is ScanEvent.Success -> {
+                        onAddItemClick(event.title, event.imageUrl)
+                    }
+                    is ScanEvent.Error -> {
+                        val msg = if (event.message == "error_scan_limit") msgLimit else msgNotFound
+                        scope.launch { snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Long) }
+                    }
+                }
             }
-            is ScanEvent.Success -> {
-                onAddItemClick(event.title, event.imageUrl)
-                viewModel.resetScanEvent()
-            }
-            is ScanEvent.Error -> {
-                val toastMsgId = if (event.message == "error_scan_limit") R.string.error_scan_limit else R.string.error_scan_not_found
-                Toast.makeText(context, toastMsgId, Toast.LENGTH_LONG).show()
-                viewModel.resetScanEvent()
-            }
-            is ScanEvent.Idle -> {}
         }
     }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             LargeTopAppBar(
                 title = { Text(text = stringResource(R.string.app_name), fontWeight = FontWeight.Bold) },
@@ -112,7 +122,7 @@ fun DashboardScreen(
         floatingActionButton = {
             ExpandableActionFab(
                 isExpanded = isFabExpanded,
-                createFolderText = stringResource(R.string.action_create_collection), // <-- AJOUT ICI
+                createFolderText = stringResource(R.string.action_create_collection),
                 onToggle = { isFabExpanded = !isFabExpanded },
                 onScanClick = {
                     isFabExpanded = false

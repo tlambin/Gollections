@@ -26,10 +26,12 @@ import kotlinx.coroutines.flow.flowOn
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 
 @HiltViewModel
 class CollectionDetailViewModel @Inject constructor(
@@ -87,24 +89,20 @@ class CollectionDetailViewModel @Inject constructor(
         viewModelScope.launch { onResult(processImageUseCase(sourceUri, shouldCutout)) }
     }
 
-    // --- NOUVEAU : Flux réactif identique au Dashboard ---
-    private val _scanEvent = MutableStateFlow<ScanEvent>(ScanEvent.Idle)
-    val scanEvent = _scanEvent.asStateFlow()
+    // --- MISE À JOUR : Utilisation du Channel ---
+    private val _scanEvent = Channel<ScanEvent>()
+    val scanEvent = _scanEvent.receiveAsFlow()
 
     fun fetchItemFromBarcode(barcode: String) {
-        _scanEvent.value = ScanEvent.Searching
         viewModelScope.launch {
+            _scanEvent.send(ScanEvent.Searching)
             val result = scanBarcodeUseCase(barcode)
             if (result.title != null) {
-                _scanEvent.value = ScanEvent.Success(result.title, result.imageUrl)
+                _scanEvent.send(ScanEvent.Success(result.title, result.imageUrl))
             } else {
-                _scanEvent.value = ScanEvent.Error(result.errorMsg ?: "error_scan_not_found")
+                _scanEvent.send(ScanEvent.Error(result.errorMsg ?: "error_scan_not_found"))
             }
         }
-    }
-
-    fun resetScanEvent() {
-        _scanEvent.value = ScanEvent.Idle
     }
     // ------------------------------------------------------
 

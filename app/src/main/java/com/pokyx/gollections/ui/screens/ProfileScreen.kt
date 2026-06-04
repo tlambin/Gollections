@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pokyx.gollections.data.preferences.LanguageConfig
+import com.pokyx.gollections.data.preferences.ThemeConfig
 import com.pokyx.gollections.ui.viewmodels.ProfileViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,7 +33,6 @@ fun ProfileScreen(
     val useDynamicColors by viewModel.dynamicColors.collectAsStateWithLifecycle()
     val selectedLanguage by viewModel.language.collectAsStateWithLifecycle()
 
-    // --- LANCEURS POUR LA GESTION DE FICHIERS ---
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) {
             viewModel.exportDatabase(uri) { success ->
@@ -49,7 +50,6 @@ fun ProfileScreen(
             }
         }
     }
-    // --------------------------------------------
 
     Scaffold(
         topBar = {
@@ -80,11 +80,11 @@ fun ProfileScreen(
                     Text("Thème de l'application", fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        listOf("Clair", "Sombre", "Système").forEach { theme ->
+                        ThemeConfig.entries.forEach { theme ->
                             FilterChip(
                                 selected = selectedTheme == theme,
                                 onClick = { viewModel.setTheme(theme) },
-                                label = { Text(theme) },
+                                label = { Text(theme.title) },
                                 leadingIcon = if (selectedTheme == theme) { { Icon(Icons.Default.Check, contentDescription = null) } } else null
                             )
                         }
@@ -107,11 +107,11 @@ fun ProfileScreen(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        listOf("Français", "English").forEach { lang ->
+                        LanguageConfig.entries.forEach { lang ->
                             FilterChip(
                                 selected = selectedLanguage == lang,
                                 onClick = { viewModel.setLanguage(lang) },
-                                label = { Text(lang) },
+                                label = { Text(lang.title) },
                                 leadingIcon = if (selectedLanguage == lang) { { Icon(Icons.Default.Check, contentDescription = null) } } else null
                             )
                         }
@@ -124,13 +124,13 @@ fun ProfileScreen(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
-                        onClick = { exportLauncher.launch("gollections_backup.json") }, // <-- Modifié ici
+                        onClick = { exportLauncher.launch("gollections_backup.json") },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Sauvegarder ma collection")
                     }
                     OutlinedButton(
-                        onClick = { importLauncher.launch(arrayOf("*/*")) }, // <-- Modifié ici
+                        onClick = { importLauncher.launch(arrayOf("*/*")) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Restaurer une sauvegarde")
