@@ -1,5 +1,6 @@
 package com.pokyx.gollections.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.text.style.TextAlign
 import com.pokyx.gollections.utils.getEmojiForCollection
+import com.pokyx.gollections.ui.theme.Dimens
 
 // --- Définition des icônes manquantes (Vecteurs originaux réintégrés) ---
 val LabelIcon: ImageVector get() = ImageVector.Builder(name = "Label", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f).apply { path(fill = SolidColor(Color.Black)) { moveTo(17.63f, 5.84f); curveTo(17.27f, 5.33f, 16.67f, 5.0f, 16.0f, 5.0f); lineTo(5.01f, 5.0f); curveTo(3.9f, 5.0f, 3.0f, 5.9f, 3.0f, 7.0f); lineTo(3.0f, 17.0f); curveTo(3.0f, 18.1f, 3.9f, 19.0f, 5.01f, 19.0f); lineTo(16.0f, 19.0f); curveTo(16.67f, 19.0f, 17.27f, 18.66f, 17.63f, 18.15f); lineTo(22.0f, 12.0f); lineTo(17.63f, 5.84f); close() } }.build()
@@ -42,21 +44,21 @@ fun MultiFabItem(text: String, icon: ImageVector, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.End,
-        modifier = Modifier.padding(end = 8.dp)
+        modifier = Modifier.padding(end = Dimens.spacingSmall)
     ) {
         Surface(
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(Dimens.cornerSmall),
             color = MaterialTheme.colorScheme.surfaceVariant,
             shadowElevation = 2.dp,
             modifier = Modifier
-                .padding(end = 12.dp)
+                .padding(end = Dimens.spacingMedium)
                 .clickable { onClick() }
         ) {
             Text(
                 text = text,
-                fontSize = 14.sp,
+                fontSize = Dimens.textBody,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                modifier = Modifier.padding(horizontal = Dimens.spacingMedium, vertical = Dimens.spacingTiny)
             )
         }
         SmallFloatingActionButton(
@@ -64,7 +66,7 @@ fun MultiFabItem(text: String, icon: ImageVector, onClick: () -> Unit) {
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ) {
-            Icon(icon, contentDescription = text, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = text, modifier = Modifier.size(Dimens.iconSmall))
         }
     }
 }
@@ -80,24 +82,31 @@ fun CustomTagChip(
 ) {
     val containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
     val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
 
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(containerColor)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
+    Surface(
+        modifier = Modifier.padding(vertical = Dimens.spacingTiny),
+        shape = CircleShape,
+        color = containerColor,
+        contentColor = contentColor,
+        border = BorderStroke(1.dp, borderColor)
     ) {
-        Text(
-            text = text,
-            color = contentColor,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Box(
+            modifier = Modifier
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
+                )
+                .padding(horizontal = Dimens.spacingMedium, vertical = Dimens.spacingSmall),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                color = contentColor,
+                fontSize = Dimens.textBody,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 
@@ -112,15 +121,15 @@ fun SubCollectionSmallCard(
     // Box globale permettant de faire dépasser la bulle de notification (Badge) en haut à droite
     Box(
         modifier = modifier
-            .padding(top = 6.dp, end = 6.dp) // Espace pour laisser la bulle déborder sans être coupée
+            .padding(top = Dimens.spacingSmall, end = Dimens.spacingSmall)
     ) {
         // 1. La Carte Principale
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(110.dp)
+                .height(Dimens.cardHeight)
                 .clickable { onCollectionClick(collection.id) },
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(Dimens.cornerLarge),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
             )
@@ -128,7 +137,7 @@ fun SubCollectionSmallCard(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(12.dp),
+                    .padding(Dimens.spacingMedium),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween // Aligne le contenu aux deux extrémités (Centre & Bas)
             ) {
@@ -146,14 +155,14 @@ fun SubCollectionSmallCard(
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(48.dp) // Proche de imageThumbnail (56) ou fabSubIconSize (48)
                                 .clip(CircleShape)
                         )
                     } else {
                         val displayEmoji = if (collection.cover.isNotBlank()) collection.cover else getEmojiForCollection(collection.name)
                         Text(
                             text = displayEmoji,
-                            fontSize = 32.sp,
+                            fontSize = Dimens.textEmojiLarge,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -166,7 +175,7 @@ fun SubCollectionSmallCard(
                 Text(
                     text = collection.name,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
+                    fontSize = Dimens.textCaption,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
@@ -179,7 +188,7 @@ fun SubCollectionSmallCard(
         if (itemCount > 0) {
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(Dimens.iconMedium)
                     .align(Alignment.TopEnd)
                     .offset(x = 6.dp, y = (-6).dp) // Décale la bulle vers l'extérieur
                     .background(MaterialTheme.colorScheme.primary, CircleShape),
