@@ -65,7 +65,6 @@ class CollectionDetailViewModel @Inject constructor(
     fun updateCollectionParent(id: Long, newParentId: Long?) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.updateParentId(id, newParentId) } }
     fun updateCollection(collection: Collection) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.updateCollection(collection) } }
 
-    // NOUVEAU : Fonction pour mettre à jour la Collection avec son nom ET son image/URL
     fun updateCollection(collectionId: Long, newName: String, newCover: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val collection = collectionRepository.getCollectionById(collectionId)
@@ -85,17 +84,30 @@ class CollectionDetailViewModel @Inject constructor(
     fun deleteTag(tag: Tag) { viewModelScope.launch(Dispatchers.IO) { tagRepository.deleteTag(tag) } }
     fun renameTag(collectionId: Long, oldName: String, newName: String) { viewModelScope.launch(Dispatchers.IO) { tagRepository.renameTag(collectionId, oldName, newName) } }
 
-    // Utilisation des UseCases
     fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
         viewModelScope.launch { onResult(processImageUseCase(sourceUri, shouldCutout)) }
     }
 
-    fun fetchItemFromBarcode(barcode: String, onResult: (title: String?, imageUrl: String?, errorMsg: String?) -> Unit) {
+    // --- NOUVEAU : Flux réactif identique au Dashboard ---
+    private val _scanEvent = MutableStateFlow<ScanEvent>(ScanEvent.Idle)
+    val scanEvent = _scanEvent.asStateFlow()
+
+    fun fetchItemFromBarcode(barcode: String) {
+        _scanEvent.value = ScanEvent.Searching
         viewModelScope.launch {
             val result = scanBarcodeUseCase(barcode)
-            onResult(result.title, result.imageUrl, result.errorMsg)
+            if (result.title != null) {
+                _scanEvent.value = ScanEvent.Success(result.title, result.imageUrl)
+            } else {
+                _scanEvent.value = ScanEvent.Error(result.errorMsg ?: "error_scan_not_found")
+            }
         }
     }
+
+    fun resetScanEvent() {
+        _scanEvent.value = ScanEvent.Idle
+    }
+    // ------------------------------------------------------
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()

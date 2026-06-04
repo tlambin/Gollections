@@ -101,12 +101,7 @@ fun DashboardScreen(
             LargeTopAppBar(
                 title = { Text(text = stringResource(R.string.app_name), fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconButton(
-                        onClick = onProfileClick,
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                    ) {
+                    IconButton(onClick = onProfileClick, modifier = Modifier.padding(end = 8.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)) {
                         Icon(Icons.Default.Person, contentDescription = "Profil")
                     }
                 },
@@ -115,52 +110,21 @@ fun DashboardScreen(
             )
         },
         floatingActionButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                AnimatedVisibility(
-                    visible = isFabExpanded,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { 50 }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { 50 })
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    ) {
-                        MultiFabItem(
-                            text = stringResource(R.string.action_scan),
-                            icon = CameraIcon,
-                            onClick = {
-                                isFabExpanded = false
-                                val barcodeScanner = BarcodeScanner(context)
-                                // CORRIGÉ : L'UI délègue immédiatement la gestion au ViewModel
-                                barcodeScanner.startScan(
-                                    onScanSuccess = { barcode -> viewModel.fetchItemFromBarcode(barcode) },
-                                    onScanFailure = { exception -> android.util.Log.e("BarcodeScan", "Erreur : ${exception.message}") }
-                                )
-                            }
-                        )
-                        MultiFabItem(
-                            text = stringResource(R.string.action_create_collection),
-                            icon = FolderIcon,
-                            onClick = { isFabExpanded = false; showAddCollectionDialog = true }
-                        )
-                        MultiFabItem(
-                            text = stringResource(R.string.action_add_item),
-                            icon = Icons.Default.Add,
-                            onClick = { isFabExpanded = false; onAddItemClick(null, null) }
-                        )
-                    }
-                }
-
-                FloatingActionButton(
-                    onClick = { isFabExpanded = !isFabExpanded },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ) {
-                    val rotation by animateFloatAsState(targetValue = if (isFabExpanded) 45f else 0f, label = "fab_rotation")
-                    Icon(Icons.Default.Add, contentDescription = "Menu Actions", modifier = Modifier.size(28.dp).rotate(rotation))
-                }
-            }
+            ExpandableActionFab(
+                isExpanded = isFabExpanded,
+                createFolderText = stringResource(R.string.action_create_collection), // <-- AJOUT ICI
+                onToggle = { isFabExpanded = !isFabExpanded },
+                onScanClick = {
+                    isFabExpanded = false
+                    val barcodeScanner = BarcodeScanner(context)
+                    barcodeScanner.startScan(
+                        onScanSuccess = { barcode -> viewModel.fetchItemFromBarcode(barcode) },
+                        onScanFailure = { exception -> android.util.Log.e("BarcodeScan", "Erreur : ${exception.message}") }
+                    )
+                },
+                onCreateFolderClick = { isFabExpanded = false; showAddCollectionDialog = true },
+                onAddItemClick = { isFabExpanded = false; onAddItemClick(null, null) }
+            )
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {

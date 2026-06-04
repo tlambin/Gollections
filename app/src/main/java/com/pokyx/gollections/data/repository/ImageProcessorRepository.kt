@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
@@ -100,7 +101,7 @@ class ImageProcessorRepository @Inject constructor(
                     }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("ImageProcessor", "Erreur lors du traitement de l'image", e)
             null
         }
     }
@@ -151,7 +152,7 @@ class ImageProcessorRepository @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("ImageProcessor", "Erreur lors de la suppression de l'image", e)
         }
     }
 }

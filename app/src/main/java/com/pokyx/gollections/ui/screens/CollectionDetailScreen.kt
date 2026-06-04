@@ -1,15 +1,10 @@
 package com.pokyx.gollections.ui.screens
 
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,7 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -38,7 +32,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
@@ -55,13 +48,17 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.ui.components.CollectionDialog
+import com.pokyx.gollections.ui.components.CustomTagChip
+import com.pokyx.gollections.ui.components.ExpandableActionFab
+import com.pokyx.gollections.ui.components.FilterListIcon
+import com.pokyx.gollections.ui.components.LabelIcon
+import com.pokyx.gollections.ui.components.SubCollectionSmallCard
 import com.pokyx.gollections.ui.viewmodels.CollectionDetailViewModel
+import com.pokyx.gollections.ui.viewmodels.ScanEvent
 import com.pokyx.gollections.utils.BarcodeScanner
 import com.pokyx.gollections.utils.buildPathBottomUp
 import com.pokyx.gollections.utils.getEmojiForCollection
 import java.text.NumberFormat
-import com.pokyx.gollections.ui.components.*
-import androidx.compose.animation.core.animateFloatAsState
 
 enum class SortOption { NAME_ASC, NAME_DESC, PRICE_ASC, PRICE_DESC, DATE_DESC, DATE_ASC }
 
@@ -95,9 +92,7 @@ fun CollectionDetailScreen(
     var isFabExpanded by remember { mutableStateOf(false) }
     var showEditSheet by remember { mutableStateOf(false) }
 
-    // NOUVEAU : Fenêtre d'édition complète
     var showEditCollectionDialog by remember { mutableStateOf(false) }
-
     var showDeleteCollectionDialog by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
     var showAddSubCollectionDialog by remember { mutableStateOf(false) }
@@ -121,9 +116,28 @@ fun CollectionDetailScreen(
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    val errorScanLimitText = stringResource(R.string.error_scan_limit)
-    val errorScanNotFoundText = stringResource(R.string.error_scan_not_found)
     val errorScanSearchingText = stringResource(R.string.error_scan_searching)
+
+    // --- GESTION RÉACTIVE DU SCAN ---
+    val scanEvent by viewModel.scanEvent.collectAsStateWithLifecycle()
+
+    LaunchedEffect(scanEvent) {
+        when (val event = scanEvent) {
+            is ScanEvent.Searching -> {
+                Toast.makeText(context, errorScanSearchingText, Toast.LENGTH_SHORT).show()
+            }
+            is ScanEvent.Success -> {
+                onAddItemClick(event.title, event.imageUrl)
+                viewModel.resetScanEvent()
+            }
+            is ScanEvent.Error -> {
+                val toastMsgId = if (event.message == "error_scan_limit") R.string.error_scan_limit else R.string.error_scan_not_found
+                Toast.makeText(context, toastMsgId, Toast.LENGTH_LONG).show()
+                viewModel.resetScanEvent()
+            }
+            is ScanEvent.Idle -> {}
+        }
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -138,7 +152,6 @@ fun CollectionDetailScreen(
                                 modifier = Modifier.horizontalScroll(rememberScrollState())
                             ) {
                                 if (collectionCover.startsWith("file") || collectionCover.startsWith("/") || collectionCover.startsWith("content") || collectionCover.startsWith("http")) {
-                                    // MODIFIÉ ICI : Utilisation de RoundedCornerShape(8.dp) au lieu de CircleShape
                                     AsyncImage(model = collectionCover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(8.dp)))
                                 } else {
                                     val displayEmoji = if (collectionCover.isNotBlank()) collectionCover else getEmojiForCollection(collectionName)
@@ -216,33 +229,21 @@ fun CollectionDetailScreen(
             }
         },
         floatingActionButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                AnimatedVisibility(visible = isFabExpanded, enter = fadeIn() + slideInVertically(initialOffsetY = { 50 }), exit = fadeOut() + slideOutVertically(targetOffsetY = { 50 })) {
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(bottom = 16.dp)) {
-                        MultiFabItem(text = stringResource(R.string.action_scan), icon = CameraIcon, onClick = {
-                            isFabExpanded = false
-                            val barcodeScanner = BarcodeScanner(context)
-                            barcodeScanner.startScan(onScanSuccess = { barcode ->
-                                Toast.makeText(context, errorScanSearchingText, Toast.LENGTH_SHORT).show()
-                                viewModel.fetchItemFromBarcode(barcode) { title, imageUrl, errorMsg ->
-                                    if (title != null) {
-                                        onAddItemClick(title, imageUrl)
-                                    } else {
-                                        val toastMsg = if (errorMsg == "error_scan_limit") errorScanLimitText else errorScanNotFoundText
-                                        Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            }, onScanFailure = {})
-                        })
-                        MultiFabItem(text = stringResource(R.string.action_create_collection), icon = FolderIcon, onClick = { isFabExpanded = false; showAddSubCollectionDialog = true })
-                        MultiFabItem(text = stringResource(R.string.action_add_item), icon = Icons.Default.Add, onClick = { isFabExpanded = false; onAddItemClick(null, null) })
-                    }
-                }
-                FloatingActionButton(onClick = { isFabExpanded = !isFabExpanded }, containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) {
-                    val rotation by animateFloatAsState(targetValue = if (isFabExpanded) 45f else 0f, label = "fab_rotation")
-                    Icon(Icons.Default.Add, contentDescription = "Menu Actions", modifier = Modifier.size(28.dp).rotate(rotation))
-                }
-            }
+            ExpandableActionFab(
+                isExpanded = isFabExpanded,
+                createFolderText = stringResource(R.string.action_create_subfolder),
+                onToggle = { isFabExpanded = !isFabExpanded },
+                onScanClick = {
+                    isFabExpanded = false
+                    val barcodeScanner = BarcodeScanner(context)
+                    barcodeScanner.startScan(
+                        onScanSuccess = { barcode -> viewModel.fetchItemFromBarcode(barcode) },
+                        onScanFailure = { }
+                    )
+                },
+                onCreateFolderClick = { isFabExpanded = false; showAddSubCollectionDialog = true },
+                onAddItemClick = { isFabExpanded = false; onAddItemClick(null, null) }
+            )
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
@@ -415,6 +416,7 @@ fun CollectionDetailScreen(
                 }
             }
 
+            // Assombri l'arrière plan si le FAB est ouvert
             if (isFabExpanded) {
                 Spacer(
                     modifier = Modifier
@@ -433,7 +435,6 @@ fun CollectionDetailScreen(
         ModalBottomSheet(onDismissRequest = { showEditSheet = false }) {
             Column(modifier = Modifier.padding(bottom = 32.dp)) {
                 Text(stringResource(R.string.manage_folder, collectionName), modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                // MODIFIÉ ICI : Redirection vers showEditCollectionDialog
                 ListItem(headlineContent = { Text(stringResource(R.string.rename)) }, leadingContent = { Icon(Icons.Default.Edit, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showEditCollectionDialog = true })
                 ListItem(headlineContent = { Text(stringResource(R.string.move_folder)) }, leadingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) }, modifier = Modifier.clickable { showEditSheet = false; showMoveDialog = true })
                 ListItem(headlineContent = { Text(stringResource(R.string.delete_folder), color = MaterialTheme.colorScheme.error) }, leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }, modifier = Modifier.clickable { showEditSheet = false; showDeleteCollectionDialog = true })
@@ -441,7 +442,6 @@ fun CollectionDetailScreen(
         }
     }
 
-    // NOUVEAU : Édition complète de la collection (Nom + Icône)
     if (showEditCollectionDialog) {
         CollectionDialog(
             title = stringResource(R.string.rename),

@@ -6,42 +6,42 @@
     <string name="new_collection">Nouvelle Collection</string>
     <string name="create">Créer</string>
     <string name="cancel">Annuler</string>
-    <string name="no_object_found">Aucun objet trouvé 😕</string>
-    <string name="stat_total_items">Total Objets</string>
+    <string name="no_object_found">Aucun article trouvé</string>
+    <string name="stat_total_items">Total d\'Articles</string>
     <string name="stat_total_items_sub">Tous médias confondus</string>
     <string name="stat_root_collections">Collections racines</string>
     <string name="stat_root_collections_sub">Collections principales</string>
     <string name="stat_loaned_items">Prêts en cours</string>
-    <string name="stat_loaned_items_sub">Objets confiés à des proches</string>
+    <string name="stat_loaned_items_sub">Articles confiés à des proches</string>
 
     <string name="title_folders">Sous-collections</string>
-    <string name="title_items">Objets</string>
-    <string name="empty_folder">Collection vide 📦</string>
+    <string name="title_items">Articles</string>
+    <string name="empty_folder">Collection vide</string>
     <string name="add_title">Ajouter</string>
-    <string name="add_new_item">Un nouvel objet</string>
+    <string name="add_new_item">Un nouvel article</string>
     <string name="add_new_subfolder">Une sous-collection</string>
     <string name="manage_folder">Gérer \'%1$s\'</string>
     <string name="rename">Renommer</string>
     <string name="move_folder">Déplacer vers une autre collection</string>
     <string name="delete_folder">Supprimer la collection</string>
-    <string name="delete_folder_warning">Attention ! Cette action supprimera également toutes les sous-collections et les objets associés.</string>
+    <string name="delete_folder_warning">Attention ! Cette action supprimera également toutes les sous-collections et les articles associés.</string>
     <string name="move_to_root">Convertir en Collection</string>
     <string name="tag_options_title">Options : %1$s</string>
     <string name="tag_options_subtitle">Que souhaitez-vous faire ?</string>
     <string name="delete_tag_title">Supprimer l\'étiquette ?</string>
-    <string name="delete_tag_warning">Voulez-vous supprimer l\'étiquette \'%1$s\' de tous vos objets ?</string>
+    <string name="delete_tag_warning">Voulez-vous supprimer l\'étiquette \'%1$s\' de tous vos articles ?</string>
     <string name="new_subfolder_title">Nouvelle sous-collection</string>
     <string name="new_subfolder_label">Nom de la collection</string>
 
-    <string name="title_new_item">Nouvel Objet</string>
-    <string name="title_edit_item">Modifier l\'objet</string>
+    <string name="title_new_item">Nouvel Article</string>
+    <string name="title_edit_item">Modifier l\'article</string>
     <string name="label_title">Titre</string>
     <string name="label_location">Emplacement</string>
     <string name="label_tags">Étiquettes</string>
     <string name="no_tags_available">Aucune étiquette disponible. Cliquez sur + pour en créer une.</string>
     <string name="label_status">Avancement</string>
     <string name="title_loan_management">Gestion du Prêt</string>
-    <string name="loan_switch_text">Objet prêté à quelqu\'un ?</string>
+    <string name="loan_switch_text">Article prêté à quelqu\'un ?</string>
     <string name="label_loan_to">Prêté à (Nom)</string>
     <string name="label_loan_date">Date du prêt</string>
     <string name="title_acquisition_info">Informations d\'acquisition</string>
@@ -49,17 +49,17 @@
     <string name="label_purchase_date">Date d\'achat</string>
     <string name="btn_save">Enregistrer</string>
     <string name="btn_save_edits">Enregistrer les modifications</string>
-    <string name="dialog_cutout_title">Détourage intelligent ✨</string>
-    <string name="dialog_cutout_text">Détourer l\'objet ?</string>
+    <string name="dialog_cutout_title">Détourage intelligent</string>
+    <string name="dialog_cutout_text">Détourer l\'article ?</string>
     <string name="dialog_illustration_title">Illustration</string>
     <string name="dialog_illustration_text">Choisissez la source</string>
-    <string name="source_camera">📷 Appareil Photo</string>
-    <string name="source_gallery">📁 Galerie</string>
+    <string name="source_camera">Appareil Photo</string>
+    <string name="source_gallery">Galerie</string>
     <string name="toast_cutout_error">Erreur lors du détourage</string>
     <string name="new_tag_label">Nom (ex: 4K, Collector, PS5…)</string>
 
     <string name="title_details">Informations</string>
-    <string name="delete_item_title">Supprimer l\'objet ?</string>
+    <string name="delete_item_title">Supprimer l\'article ?</string>
     <string name="delete_item_warning">Voulez-vous vraiment supprimer \"%1$s\" ? Cette action est irréversible.</string>
     <string name="not_specified">Non renseignée</string>
     <string name="not_specified_price">Non renseigné</string>
@@ -89,8 +89,8 @@
     <string name="unit_game_plural">jeux</string>
     <string name="unit_book_single">livre</string>
     <string name="unit_book_plural">livres</string>
-    <string name="unit_object_single">objet</string>
-    <string name="unit_object_plural">objets</string>
+    <string name="unit_object_single">article</string>
+    <string name="unit_object_plural">articles</string>
 
     <string name="change_cover">Modifier l\'icône</string>
     <string name="choose_gallery">Choisir une image</string>
@@ -108,7 +108,8 @@
 
     <string name="action_scan">Scanner un code-barres</string>
     <string name="action_create_collection">Créer une collection</string>
-    <string name="action_add_item">Ajouter un objet</string>
+    <string name="action_create_subfolder">Créer une sous-collection</string>
+    <string name="action_add_item">Ajouter un article</string>
     <string name="error_scan_limit">Limite de scans quotidiens atteinte. Réessayez demain.</string>
     <string name="error_scan_not_found">Code-barres introuvable dans la base de données.</string>
     <string name="error_network">Pas de connexion internet.</string>
@@ -127,7 +128,7 @@
     <string name="prop_artist">Artiste</string>
     <string name="prop_album">Album</string>
 
-    <string name="title_item_type">Type d\'objet</string>
+    <string name="title_item_type">Type d\'article</string>
     <string name="title_specific_info">Informations spécifiques</string>
     <string name="text_processing_cutout">Détourage...</string>
     <string name="btn_yes">Oui</string>

@@ -2,6 +2,7 @@ package com.pokyx.gollections.data.repository
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.google.gson.Gson
 import com.pokyx.gollections.data.AppDatabase
 import com.pokyx.gollections.data.Collection
@@ -51,7 +52,7 @@ class BackupRepository @Inject constructor(
             }
             Result.success(Unit)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("BackupRepository", "Erreur lors de l'exportation de la base de données", e)
             Result.failure(e)
         }
     }
@@ -79,7 +80,7 @@ class BackupRepository @Inject constructor(
             )
             Result.success(Unit)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("BackupRepository", "Erreur lors de l'importation de la base de données", e)
             Result.failure(e)
         }
     }

@@ -17,12 +17,16 @@ import javax.inject.Singleton
 class ItemRepository @Inject constructor(
     private val itemDao: CollectionItemDao
 ) {
+    companion object {
+        private val ALPHANUMERIC_REGEX = Regex("[^\\w\\sÀ-ÿ]")
+    }
+
     fun getAllItemsWithTags(): Flow<List<CollectionItemWithTags>> = itemDao.getAllItemsWithTags()
 
     fun getItemsByCollectionWithTags(collectionId: Long): Flow<List<CollectionItemWithTags>> = itemDao.getItemsByCollectionWithTags(collectionId)
 
     fun searchItemsWithTags(query: String): Flow<List<CollectionItemWithTags>> {
-        val sanitizedQuery = query.replace(Regex("[^\\w\\sÀ-ÿ]"), "").trim()
+        val sanitizedQuery = query.replace(ALPHANUMERIC_REGEX, "").trim()
         val ftsQuery = if (sanitizedQuery.isNotBlank()) "$sanitizedQuery*" else ""
         return itemDao.searchItemsWithTagsFts(ftsQuery)
     }
@@ -63,7 +67,7 @@ class ItemRepository @Inject constructor(
         tagFilter: String,
         sortOption: String
     ): Flow<PagingData<CollectionItemWithTags>> {
-        val sanitizedQuery = searchQuery.replace(Regex("[^\\w\\sÀ-ÿ]"), "").trim()
+        val sanitizedQuery = searchQuery.replace(ALPHANUMERIC_REGEX, "").trim()
         return Pager(
             config = PagingConfig(pageSize = 20, enablePlaceholders = false),
             pagingSourceFactory = { itemDao.getPagedItems(collectionId, sanitizedQuery, tagFilter, sortOption) }
