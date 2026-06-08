@@ -1,11 +1,21 @@
 package com.pokyx.gollections
 
 import android.app.Application
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 import kotlin.concurrent.thread
 
 @HiltAndroidApp
-class GollectionsApplication : Application() {
+class GollectionsApplication : Application(), ImageLoaderFactory {
+
+    @Inject
+    lateinit var imageLoader: ImageLoader // Injecte ton loader Hilt
+
+    override fun newImageLoader(): ImageLoader {
+        return imageLoader
+    }
 
     override fun onCreate() {
         super.onCreate()
