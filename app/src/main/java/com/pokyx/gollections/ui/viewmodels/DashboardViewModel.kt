@@ -90,15 +90,14 @@ class DashboardViewModel @Inject constructor(
     }
 
     // CORRECTION ICI : Chargement du Bitmap en amont
-    fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
+    suspend fun loadBitmap(uri: Uri): android.graphics.Bitmap? {
+        return imageProcessor.loadScaledBitmap(uri)
+    }
+
+    fun processAndSaveBitmap(bitmap: android.graphics.Bitmap, shouldCutout: Boolean, onResult: (String?) -> Unit) {
         viewModelScope.launch {
-            val bitmap = imageProcessor.loadScaledBitmap(sourceUri)
-            if (bitmap != null) {
-                val result = processImageUseCase(bitmap, shouldCutout)
-                onResult(result)
-            } else {
-                onResult(null)
-            }
+            val resultUri = imageProcessor.processAndSaveBitmap(bitmap, shouldCutout)
+            onResult(resultUri?.toString())
         }
     }
 

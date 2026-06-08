@@ -1,5 +1,6 @@
 package com.pokyx.gollections.ui.components
 
+import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -14,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,7 +38,9 @@ fun CollectionDialog(
     initialCover: String = "",
     onDismiss: () -> Unit,
     onConfirm: (name: String, cover: String) -> Unit,
-    onProcessImage: (Uri, Boolean, (String?) -> Unit) -> Unit
+    // --- NOUVEAUX PARAMÈTRES POUR LE RECADRAGE ---
+    onLoadBitmap: suspend (Uri) -> Bitmap?,
+    onProcessBitmap: (Bitmap, Boolean, (String?) -> Unit) -> Unit
 ) {
     val context = LocalContext.current
     var name by remember { mutableStateOf(initialName) }
@@ -49,17 +53,33 @@ fun CollectionDialog(
     var isProcessing by remember { mutableStateOf(false) }
     var tempEmoji by remember { mutableStateOf("") }
 
+    // --- ÉTATS DU RECADRAGE ---
+    var pendingImageUriString by rememberSaveable { mutableStateOf<String?>(null) }
+    var loadedBitmapToCrop by remember { mutableStateOf<Bitmap?>(null) }
+
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
-            isProcessing = true
-            onProcessImage(uri, false) { savedUrl ->
-                isProcessing = false
-                if (savedUrl != null) cover = savedUrl else Toast.makeText(context, R.string.toast_cutout_error, Toast.LENGTH_SHORT).show()
-            }
+            pendingImageUriString = uri.toString()
+            showMenu = false // On ferme le menu de sélection
         }
     }
 
-    // OPTIMISATION : Calcul de l'emoji mis en cache. Ne se recalcule que si 'cover' ou 'name' change.
+    // --- CHARGEMENT DU BITMAP ---
+    LaunchedEffect(pendingImageUriString) {
+        pendingImageUriString?.let { uriStr ->
+            isProcessing = true
+            val bitmap = onLoadBitmap(Uri.parse(uriStr))
+            if (bitmap != null) {
+                loadedBitmapToCrop = bitmap
+            } else {
+                Toast.makeText(context, "Erreur de chargement de l'image", Toast.LENGTH_SHORT).show()
+            }
+            isProcessing = false
+            pendingImageUriString = null
+        }
+    }
+
+    // OPTIMISATION : Calcul de l'emoji mis en cache.
     val fallbackName = name.ifBlank { "dossier" }
     val displayEmoji = remember(cover, fallbackName) {
         if (cover.isNotBlank() && !cover.startsWith("file") && !cover.startsWith("content") && !cover.startsWith("http") && !cover.startsWith("/")) {
@@ -69,14 +89,13 @@ fun CollectionDialog(
         } else ""
     }
 
-    // --- DIALOGS SECONDAIRES (Sortis de la hiérarchie du AlertDialog principal) ---
+    // --- DIALOGS SECONDAIRES ---
     if (showMenu) {
         AlertDialog(
             onDismissRequest = { showMenu = false },
             title = { Text("Source de l'illustration", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
             text = {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    // URL
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.clickable { showMenu = false; showUrlDialog = true }.padding(8.dp)
@@ -86,17 +105,15 @@ fun CollectionDialog(
                         Text("URL", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
 
-                    // Galerie
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.clickable { showMenu = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)
+                        modifier = Modifier.clickable { galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)
                     ) {
                         Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Galerie", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
 
-                    // Emoji
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.clickable {
@@ -144,6 +161,28 @@ fun CollectionDialog(
         )
     }
 
+    // --- LE RECADRAGE MAGIQUE (MASQUE ROND) ---
+    if (loadedBitmapToCrop != null) {
+        CropImageDialog(
+            bitmap = loadedBitmapToCrop!!,
+            overlayShape = CropOverlayShape.CIRCLE, // <- C'est ici que la magie du hublot opère !
+            onDismiss = { loadedBitmapToCrop = null },
+            onConfirm = { croppedBitmap, smartCutout ->
+                isProcessing = true
+                loadedBitmapToCrop = null // Ferme l'écran de recadrage
+
+                onProcessBitmap(croppedBitmap, smartCutout) { savedUrl ->
+                    isProcessing = false
+                    if (savedUrl != null) {
+                        cover = savedUrl
+                    } else {
+                        Toast.makeText(context, "Erreur lors de la sauvegarde", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
+    }
+
     // --- DIALOG PRINCIPAL ---
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -154,7 +193,6 @@ fun CollectionDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                // Zone de l'image / Emoji
                 Box(contentAlignment = Alignment.Center) {
                     Box(
                         modifier = Modifier
@@ -178,7 +216,6 @@ fun CollectionDialog(
                         }
                     }
 
-                    // Bouton Edition (Petit crayon)
                     if (!isProcessing) {
                         Box(
                             modifier = Modifier
@@ -194,12 +231,11 @@ fun CollectionDialog(
                     }
                 }
 
-                // Champ optionnel pour l'Emoji (S'affiche sous l'image de manière fluide)
                 if (showEmojiInput) {
                     OutlinedTextField(
                         value = tempEmoji,
                         onValueChange = { input ->
-                            if (input.length <= 4) { // Limite pour éviter les textes longs
+                            if (input.length <= 4) {
                                 tempEmoji = input
                                 if (input.isNotBlank()) cover = input
                             }
@@ -212,7 +248,6 @@ fun CollectionDialog(
                     )
                 }
 
-                // Nom du dossier
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },

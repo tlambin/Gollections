@@ -312,6 +312,7 @@ fun ItemFormBody(
     if (loadedBitmapToCrop != null) {
         CropImageDialog(
             bitmap = loadedBitmapToCrop!!,
+            overlayShape = CropOverlayShape.ROUNDED_SQUARE,
             onDismiss = { loadedBitmapToCrop = null },
             onConfirm = { croppedBitmap, smartCutout ->
                 isProcessingImage = true

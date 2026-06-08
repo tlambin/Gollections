@@ -193,7 +193,8 @@ fun DashboardScreen(
                 viewModel.insertCollection(name = name, cover = cover, parentId = null)
                 showAddCollectionDialog = false
             },
-            onProcessImage = { uri, cutout, callback -> viewModel.processAndSaveImage(uri, cutout, callback) }
+            onLoadBitmap = { uri -> viewModel.loadBitmap(uri) },
+            onProcessBitmap = { bitmap, cutout, onResult -> viewModel.processAndSaveBitmap(bitmap, cutout, onResult) }
         )
     }
 }
