@@ -201,10 +201,14 @@ class ItemViewModel @Inject constructor(
         }
     }
 
-    fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
+    suspend fun loadBitmap(uri: Uri): android.graphics.Bitmap? {
+        return imageProcessor.loadScaledBitmap(uri)
+    }
+
+    fun processAndSaveBitmap(bitmap: android.graphics.Bitmap, shouldCutout: Boolean, onResult: (String?) -> Unit) {
         viewModelScope.launch {
-            val resultUri = imageProcessor.processImage(sourceUri, shouldCutout)
-            onResult(resultUri?.toString())
+            val uri = imageProcessor.processAndSaveBitmap(bitmap, shouldCutout)
+            onResult(uri?.toString())
         }
     }
 }

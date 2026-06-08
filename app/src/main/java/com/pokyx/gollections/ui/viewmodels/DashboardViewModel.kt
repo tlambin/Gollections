@@ -7,6 +7,7 @@ import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.CollectionItemCount
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ItemRepository
+import com.pokyx.gollections.data.repository.ImageProcessorRepository // NOUVEL IMPORT
 import com.pokyx.gollections.domain.usecase.GetCollectionDescendantsUseCase
 import com.pokyx.gollections.domain.usecase.ProcessImageUseCase
 import com.pokyx.gollections.domain.usecase.ScanBarcodeUseCase
@@ -39,7 +40,8 @@ class DashboardViewModel @Inject constructor(
     private val itemRepository: ItemRepository,
     private val getCollectionDescendantsUseCase: GetCollectionDescendantsUseCase,
     private val processImageUseCase: ProcessImageUseCase,
-    private val scanBarcodeUseCase: ScanBarcodeUseCase
+    private val scanBarcodeUseCase: ScanBarcodeUseCase,
+    private val imageProcessor: ImageProcessorRepository // AJOUT ICI
 ) : ViewModel() {
 
     val collections = collectionRepository.getAllCollections()
@@ -87,10 +89,16 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    // CORRECTION ICI : Chargement du Bitmap en amont
     fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
         viewModelScope.launch {
-            val result = processImageUseCase(sourceUri, shouldCutout)
-            onResult(result)
+            val bitmap = imageProcessor.loadScaledBitmap(sourceUri)
+            if (bitmap != null) {
+                val result = processImageUseCase(bitmap, shouldCutout)
+                onResult(result)
+            } else {
+                onResult(null)
+            }
         }
     }
 

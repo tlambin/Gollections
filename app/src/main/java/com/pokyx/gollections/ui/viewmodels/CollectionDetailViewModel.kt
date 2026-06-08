@@ -9,6 +9,7 @@ import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ItemRepository
 import com.pokyx.gollections.data.repository.TagRepository
+import com.pokyx.gollections.data.repository.ImageProcessorRepository // NOUVEL IMPORT
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
 import com.pokyx.gollections.data.tag.Tag
 import com.pokyx.gollections.domain.usecase.DeleteCollectionUseCase
@@ -41,7 +42,8 @@ class CollectionDetailViewModel @Inject constructor(
     private val getCollectionDescendantsUseCase: GetCollectionDescendantsUseCase,
     private val deleteCollectionUseCase: DeleteCollectionUseCase,
     private val processImageUseCase: ProcessImageUseCase,
-    private val scanBarcodeUseCase: ScanBarcodeUseCase
+    private val scanBarcodeUseCase: ScanBarcodeUseCase,
+    private val imageProcessor: ImageProcessorRepository // AJOUT ICI
 ) : ViewModel() {
 
     val allCollections = collectionRepository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -56,11 +58,9 @@ class CollectionDetailViewModel @Inject constructor(
 
     fun getTotalValue(collectionId: Long): Flow<Double> {
         return itemRepository.getTotalValueRecursive(collectionId)
-            .map { it ?: 0.0 } // Si le dossier est vide, la DB renvoie null, on le transforme en 0.0
+            .map { it ?: 0.0 }
             .flowOn(Dispatchers.IO)
     }
-
-    // --- NETTOYAGE : Suppression des Dispatchers.IO redondants ---
 
     fun insertCollection(name: String, cover: String = "", parentId: Long? = null) {
         viewModelScope.launch { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) }
@@ -78,7 +78,6 @@ class CollectionDetailViewModel @Inject constructor(
         viewModelScope.launch { collectionRepository.updateCollection(collection) }
     }
 
-    // --- OPTIMISATION : Utilisation de la mise à jour partielle directe via le Repository ---
     fun updateCollection(collectionId: Long, newName: String, newCover: String) {
         viewModelScope.launch {
             collectionRepository.updateCollectionDetails(collectionId, newName, newCover)
@@ -104,11 +103,18 @@ class CollectionDetailViewModel @Inject constructor(
         viewModelScope.launch { tagRepository.renameTag(collectionId, oldName, newName) }
     }
 
+    // CORRECTION ICI : Chargement du Bitmap en amont
     fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
-        viewModelScope.launch { onResult(processImageUseCase(sourceUri, shouldCutout)) }
+        viewModelScope.launch {
+            val bitmap = imageProcessor.loadScaledBitmap(sourceUri)
+            if (bitmap != null) {
+                onResult(processImageUseCase(bitmap, shouldCutout))
+            } else {
+                onResult(null)
+            }
+        }
     }
 
-    // --- GESTION DU SCAN ---
     private val _scanEvent = Channel<ScanEvent>()
     val scanEvent = _scanEvent.receiveAsFlow()
 
@@ -124,7 +130,6 @@ class CollectionDetailViewModel @Inject constructor(
         }
     }
 
-    // --- FILTRES ET RECHERCHE ---
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
     private val _tagFilter = MutableStateFlow("Toutes")

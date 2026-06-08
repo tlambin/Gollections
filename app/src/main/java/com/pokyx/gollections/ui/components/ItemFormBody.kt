@@ -79,18 +79,33 @@ fun ItemFormBody(
     var showSourceDialog by remember { mutableStateOf(false) }
     var showUrlDialog by remember { mutableStateOf(false) }
     var urlInput by remember { mutableStateOf("") }
-    var showDetourageConfirmation by remember { mutableStateOf(false) }
     var isProcessingImage by remember { mutableStateOf(false) }
 
+    // --- NOUVEAU SYSTÈME DE RECADRAGE ---
     var tempPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingImageUriString by rememberSaveable { mutableStateOf<String?>(null) }
-    val pendingImageUri = pendingImageUriString?.let { Uri.parse(it) }
+    var loadedBitmapToCrop by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) { pendingImageUriString = uri.toString(); showDetourageConfirmation = true }
+        if (uri != null) { pendingImageUriString = uri.toString() }
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        if (success && tempPhotoUriString != null) { pendingImageUriString = tempPhotoUriString; showDetourageConfirmation = true }
+        if (success && tempPhotoUriString != null) { pendingImageUriString = tempPhotoUriString }
+    }
+
+    // Intercepte l'URI choisie et charge le Bitmap pour le recadrage
+    LaunchedEffect(pendingImageUriString) {
+        pendingImageUriString?.let { uriStr ->
+            isProcessingImage = true
+            val bitmap = viewModel.loadBitmap(Uri.parse(uriStr))
+            if (bitmap != null) {
+                loadedBitmapToCrop = bitmap
+            } else {
+                Toast.makeText(context, "Erreur de chargement de l'image", Toast.LENGTH_SHORT).show()
+            }
+            isProcessingImage = false
+            pendingImageUriString = null // Reset l'URI pour éviter les boucles
+        }
     }
 
     Column(
@@ -205,12 +220,10 @@ fun ItemFormBody(
         Button(
             onClick = { onSaveClick(state) },
             modifier = Modifier.fillMaxWidth().height(56.dp)
-            // OPTIMISATION UX : Retrait de 'enabled' pour permettre à la validation du parent (Toasts) de s'exécuter
         ) { Text(buttonText, fontSize = 16.sp) }
     }
 
     // --- DIALOGS ---
-    // (J'ai conservé tes modales exactement comme tu les as écrites, elles sont très propres !)
 
     if (showPurchaseDatePicker) {
         DatePickerDialog(
@@ -295,35 +308,23 @@ fun ItemFormBody(
         )
     }
 
-    if (showDetourageConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showDetourageConfirmation = false },
-            title = { Text(stringResource(R.string.dialog_cutout_title)) },
-            text = { Text(stringResource(R.string.dialog_cutout_text)) },
-            confirmButton = {
-                Button(onClick = {
-                    showDetourageConfirmation = false
-                    pendingImageUri?.let { uri ->
-                        isProcessingImage = true
-                        viewModel.processAndSaveImage(uri, true) { finalUrl ->
-                            isProcessingImage = false
-                            if (finalUrl != null) viewModel.updateForm { it.copy(imageUrl = finalUrl) }
-                            else Toast.makeText(context, R.string.toast_cutout_error, Toast.LENGTH_SHORT).show()
-                        }
+    // Affiche notre nouvel écran de recadrage magique si le Bitmap est prêt
+    if (loadedBitmapToCrop != null) {
+        CropImageDialog(
+            bitmap = loadedBitmapToCrop!!,
+            onDismiss = { loadedBitmapToCrop = null },
+            onConfirm = { croppedBitmap, smartCutout ->
+                isProcessingImage = true
+                loadedBitmapToCrop = null // Ferme le dialogue
+
+                viewModel.processAndSaveBitmap(croppedBitmap, smartCutout) { finalUrl ->
+                    isProcessingImage = false
+                    if (finalUrl != null) {
+                        viewModel.updateForm { it.copy(imageUrl = finalUrl) }
+                    } else {
+                        Toast.makeText(context, "Erreur de traitement de l'image", Toast.LENGTH_SHORT).show()
                     }
-                }) { Text(stringResource(R.string.btn_yes)) }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showDetourageConfirmation = false
-                    pendingImageUri?.let { uri ->
-                        isProcessingImage = true
-                        viewModel.processAndSaveImage(uri, false) { finalUrl ->
-                            isProcessingImage = false
-                            if (finalUrl != null) viewModel.updateForm { it.copy(imageUrl = finalUrl) }
-                        }
-                    }
-                }) { Text(stringResource(R.string.btn_no)) }
+                }
             }
         )
     }
