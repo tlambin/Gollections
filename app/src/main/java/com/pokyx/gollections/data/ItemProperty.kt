@@ -2,6 +2,7 @@ package com.pokyx.gollections.data
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
@@ -13,6 +14,10 @@ import androidx.room.PrimaryKey
             childColumns = ["itemId"],
             onDelete = ForeignKey.CASCADE // Si on supprime l'objet, on supprime ses propriétés
         )
+    ],
+    // OPTIMISATION : Index indispensable pour des suppressions en cascade instantanées
+    indices = [
+        Index(value = ["itemId"])
     ]
 )
 data class ItemProperty(

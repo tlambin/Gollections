@@ -20,6 +20,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pokyx.gollections.data.preferences.LanguageConfig
 import com.pokyx.gollections.data.preferences.ThemeConfig
+import com.pokyx.gollections.ui.viewmodels.ProfileUiEvent // NOUVEAU : Import de l'événement
 import com.pokyx.gollections.ui.viewmodels.ProfileViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -33,21 +34,33 @@ fun ProfileScreen(
     val useDynamicColors by viewModel.dynamicColors.collectAsStateWithLifecycle()
     val selectedLanguage by viewModel.language.collectAsStateWithLifecycle()
 
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) {
-            viewModel.exportDatabase(uri) { success ->
-                val msg = if (success) "Sauvegarde réussie !" else "Erreur de sauvegarde"
-                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+    // NOUVEAU : Écoute sécurisée des événements envoyés par le ViewModel
+    LaunchedEffect(Unit) {
+        viewModel.uiEvent.collect { event ->
+            when (event) {
+                is ProfileUiEvent.ExportSuccess ->
+                    Toast.makeText(context, "Sauvegarde réussie !", Toast.LENGTH_SHORT).show()
+                is ProfileUiEvent.ExportError ->
+                    Toast.makeText(context, "Erreur de sauvegarde: ${event.message}", Toast.LENGTH_LONG).show()
+                is ProfileUiEvent.ImportSuccess ->
+                    Toast.makeText(context, "Restauration réussie ! 🔄", Toast.LENGTH_SHORT).show()
+                is ProfileUiEvent.ImportError ->
+                    Toast.makeText(context, "Erreur: ${event.message}", Toast.LENGTH_LONG).show()
             }
         }
     }
 
+    // CORRECTION : Plus de callbacks ici, on appelle juste la fonction !
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) {
+            viewModel.exportDatabase(uri)
+        }
+    }
+
+    // CORRECTION : Plus de callbacks ici non plus !
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            viewModel.importDatabase(uri) { success, errorMsg ->
-                val msg = if (success) "Restauration réussie ! 🔄" else "Erreur : $errorMsg"
-                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-            }
+            viewModel.importDatabase(uri)
         }
     }
 

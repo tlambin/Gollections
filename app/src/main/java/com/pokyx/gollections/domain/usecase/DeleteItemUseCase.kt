@@ -12,7 +12,10 @@ class DeleteItemUseCase @Inject constructor(
     private val imageProcessor: ImageProcessorRepository
 ) {
     suspend operator fun invoke(item: CollectionItem) = withContext(Dispatchers.IO) {
+        // 1. Suppression SQL (et nettoyage en cascade des Tags/Propriétés par Room)
         itemRepository.deleteItem(item)
+
+        // 2. Nettoyage du fichier physique si nécessaire
         if (item.imageUrl.isNotBlank()) {
             imageProcessor.deleteImageFile(item.imageUrl)
         }

@@ -8,9 +8,9 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.pokyx.gollections.data.preferences.PreferencesManager
 import com.pokyx.gollections.data.preferences.ThemeConfig
@@ -26,12 +26,13 @@ class MainActivity : ComponentActivity() {
     lateinit var preferencesManager: PreferencesManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge() // Conventionnellement placé juste après le super.onCreate
 
         setContent {
-            val themePref by preferencesManager.themeFlow.collectAsState(initial = ThemeConfig.SYSTEM)
-            val dynamicColor by preferencesManager.dynamicColorsFlow.collectAsState(initial = true)
+            // OPTIMISATION : Utilisation de collectAsStateWithLifecycle pour préserver la batterie
+            val themePref by preferencesManager.themeFlow.collectAsStateWithLifecycle(initialValue = ThemeConfig.SYSTEM)
+            val dynamicColor by preferencesManager.dynamicColorsFlow.collectAsStateWithLifecycle(initialValue = true)
 
             val darkTheme = when (themePref) {
                 ThemeConfig.DARK -> true

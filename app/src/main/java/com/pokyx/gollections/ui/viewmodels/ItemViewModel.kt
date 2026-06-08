@@ -19,12 +19,12 @@ import com.pokyx.gollections.domain.usecase.GetCollectionPathUseCase
 import com.pokyx.gollections.domain.usecase.InsertItemUseCase
 import com.pokyx.gollections.domain.usecase.UpdateItemUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -47,7 +47,8 @@ enum class ItemPropertyKey(val value: String, val isMultiLine: Boolean = false) 
     ALBUM("prop_album");
 
     companion object {
-        fun fromValue(value: String): ItemPropertyKey? = values().find { it.value == value }
+        // Optimisation : Utilisation de "entries" au lieu de "values()" pour éviter l'allocation mémoire à chaque appel
+        fun fromValue(value: String): ItemPropertyKey? = entries.find { it.value == value }
     }
 }
 
@@ -81,7 +82,8 @@ class ItemViewModel @Inject constructor(
 
     private val gson = Gson()
 
-    val collections = collectionRepository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val collections = collectionRepository.getAllCollections()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _formState = MutableStateFlow(
         savedStateHandle.get<String>("form_state_json")?.let {
@@ -165,20 +167,44 @@ class ItemViewModel @Inject constructor(
     }
 
     fun insertItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) {
-        viewModelScope.launch { insertItemUseCase(item, tags, properties) }
+        viewModelScope.launch {
+            insertItemUseCase(item, tags, properties)
+        }
     }
 
     fun updateItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) {
-        viewModelScope.launch { updateItemUseCase(item, tags, properties) }
+        viewModelScope.launch {
+            updateItemUseCase(item, tags, properties)
+        }
     }
 
-    fun deleteItem(item: CollectionItem) { viewModelScope.launch { deleteItemUseCase(item) } }
+    fun deleteItem(item: CollectionItem) {
+        viewModelScope.launch {
+            deleteItemUseCase(item)
+        }
+    }
 
-    fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = itemRepository.getItemByIdWithTags(id)
+    fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> =
+        itemRepository.getItemByIdWithTags(id)
 
-    fun getTagsForCollections(collectionIds: List<Long>): Flow<List<Tag>> = if (collectionIds.isEmpty()) kotlinx.coroutines.flow.flowOf(emptyList()) else tagRepository.getTagsByCollectionIds(collectionIds)
+    fun getTagsForCollections(collectionIds: List<Long>): Flow<List<Tag>> {
+        return if (collectionIds.isEmpty()) {
+            flowOf(emptyList())
+        } else {
+            tagRepository.getTagsByCollectionIds(collectionIds)
+        }
+    }
 
-    fun insertTag(name: String, collectionId: Long) { viewModelScope.launch(Dispatchers.IO) { tagRepository.insertTag(Tag(name = name, collectionId = collectionId)) } }
+    fun insertTag(name: String, collectionId: Long) {
+        viewModelScope.launch {
+            tagRepository.insertTag(Tag(name = name, collectionId = collectionId))
+        }
+    }
 
-    fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) { viewModelScope.launch { val resultUri = imageProcessor.processImage(sourceUri, shouldCutout); onResult(resultUri?.toString()) } }
+    fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            val resultUri = imageProcessor.processImage(sourceUri, shouldCutout)
+            onResult(resultUri?.toString())
+        }
+    }
 }

@@ -7,8 +7,6 @@ import javax.inject.Inject
 class ProcessImageUseCase @Inject constructor(
     private val imageProcessor: ImageProcessorRepository
 ) {
-    suspend operator fun invoke(sourceUri: Uri, shouldCutout: Boolean): String? {
-        val resultUri = imageProcessor.processImage(sourceUri, shouldCutout)
-        return resultUri?.toString()
-    }
+    suspend operator fun invoke(sourceUri: Uri, shouldCutout: Boolean): String? =
+        imageProcessor.processImage(sourceUri, shouldCutout)?.toString()
 }

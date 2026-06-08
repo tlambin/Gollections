@@ -4,11 +4,12 @@ import android.content.Context
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
-
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class BarcodeScanner(context: Context) {
 
-    // Configuration du scanner pour cibler uniquement les types de codes-barres standards (EAN, UPC...)
     private val options = GmsBarcodeScannerOptions.Builder()
         .setBarcodeFormats(
             Barcode.FORMAT_EAN_13,
@@ -16,29 +17,29 @@ class BarcodeScanner(context: Context) {
             Barcode.FORMAT_UPC_A,
             Barcode.FORMAT_UPC_E
         )
-        .enableAutoZoom() // Permet de zoomer automatiquement si le code-barres est loin
+        .enableAutoZoom()
         .build()
 
-    private val scanner = GmsBarcodeScanning.getClient(context, options)
+    // Sécurisation du contexte pour éviter les fuites de mémoire
+    private val scanner = GmsBarcodeScanning.getClient(context.applicationContext, options)
 
     /**
      * Lance l'interface native de scan.
-     * @param onScanSuccess Callback invoqué avec la chaîne de caractères du code-barres trouvé
-     * @param onScanFailure Callback invoqué en cas d'erreur ou d'annulation
+     * @return La valeur textuelle du code-barres.
+     * @throws Exception en cas d'erreur ou d'annulation par l'utilisateur.
      */
-    fun startScan(
-        onScanSuccess: (String) -> Unit,
-        onScanFailure: (Exception) -> Unit
-    ) {
+    suspend fun startScan(): String = suspendCancellableCoroutine { continuation ->
         scanner.startScan()
             .addOnSuccessListener { barcode ->
-                // Récupère la valeur brute textuelle du code-barres (ex: "9782205043754")
                 barcode.rawValue?.let { code ->
-                    onScanSuccess(code)
-                }
+                    continuation.resume(code)
+                } ?: continuation.resumeWithException(Exception("Code-barres illisible ou vide"))
             }
             .addOnFailureListener { exception ->
-                onScanFailure(exception)
+                continuation.resumeWithException(exception)
             }
+
+        // Si la coroutine est annulée (ex: fermeture brutale de l'écran), on peut optionnellement annuler la Task
+        // (Bien que GMS s'en charge généralement tout seul)
     }
 }

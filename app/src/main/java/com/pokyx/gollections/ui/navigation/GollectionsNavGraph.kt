@@ -29,10 +29,18 @@ fun GollectionsNavGraph(navController: NavHostController) {
         NavHost(
             navController = navController,
             startDestination = DashboardRoute,
-            enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) + fadeIn(tween(300)) },
-            exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) + fadeOut(tween(300)) },
-            popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) + fadeIn(tween(300)) },
-            popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) + fadeOut(tween(300)) }
+            enterTransition = {
+                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) + fadeIn(tween(300))
+            },
+            exitTransition = {
+                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) + fadeOut(tween(300))
+            },
+            popEnterTransition = {
+                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) + fadeIn(tween(300))
+            },
+            popExitTransition = {
+                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) + fadeOut(tween(300))
+            }
         ) {
             composable<DashboardRoute> {
                 val viewModel: DashboardViewModel = hiltViewModel()
@@ -70,11 +78,13 @@ fun GollectionsNavGraph(navController: NavHostController) {
                         navController.navigate(ItemDetailRoute(itemId = itemId))
                     },
                     onAddItemClick = { title, imageUrl ->
-                        navController.navigate(AddItemRoute(
-                            preSelectedCollectionId = route.collectionId,
-                            scannedTitle = title,
-                            scannedImageUrl = imageUrl
-                        ))
+                        navController.navigate(
+                            AddItemRoute(
+                                preSelectedCollectionId = route.collectionId,
+                                scannedTitle = title,
+                                scannedImageUrl = imageUrl
+                            )
+                        )
                     },
                     onCollectionClick = { subCollectionId ->
                         navController.navigate(CollectionDetailRoute(collectionId = subCollectionId))
@@ -93,7 +103,7 @@ fun GollectionsNavGraph(navController: NavHostController) {
                     onBackClick = { navController.popBackStack() },
                     onSaveClick = { newItem, tags, properties ->
                         viewModel.insertItemWithTags(newItem, tags, properties)
-                        navController.popBackStack()
+                        navController.popBackStack() // Retour instantané après la demande de sauvegarde
                     },
                     viewModel = viewModel
                 )

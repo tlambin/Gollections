@@ -48,179 +48,189 @@ fun ItemDetailScreen(
     val itemWithTags by viewModel.getItemByIdWithTags(itemId).collectAsStateWithLifecycle(initialValue = null)
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    if (itemWithTags == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        return
-    }
-
-    val item = itemWithTags!!.item
-    val tags = itemWithTags!!.tags
-    val properties = itemWithTags!!.properties
+    // OPTIMISATION : Capture de l'état pour activer le Smart Cast de Kotlin
+    val currentData = itemWithTags
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { },
                 navigationIcon = {
+                    // Le bouton retour est TOUJOURS visible, même pendant le chargement
                     IconButton(
                         onClick = onBackClick,
                         modifier = Modifier.padding(start = 8.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
                     ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour") }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { onEditClick(item.id) },
-                        modifier = Modifier.padding(end = 8.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                    ) { Icon(Icons.Default.Edit, contentDescription = "Modifier") }
-                    IconButton(
-                        onClick = { showDeleteDialog = true },
-                        modifier = Modifier.padding(end = 8.dp).background(MaterialTheme.colorScheme.errorContainer, CircleShape)
-                    ) { Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.onErrorContainer) }
+                    // Les actions n'apparaissent que si les données sont prêtes
+                    if (currentData != null) {
+                        IconButton(
+                            onClick = { onEditClick(currentData.item.id) },
+                            modifier = Modifier.padding(end = 8.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        ) { Icon(Icons.Default.Edit, contentDescription = "Modifier") }
+
+                        IconButton(
+                            onClick = { showDeleteDialog = true },
+                            modifier = Modifier.padding(end = 8.dp).background(MaterialTheme.colorScheme.errorContainer, CircleShape)
+                        ) { Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.onErrorContainer) }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-
-            with(sharedTransitionScope) {
-                if (item.imageUrl.isNotBlank()) {
-                    AsyncImage(
-                        model = item.imageUrl,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(250.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .sharedElement(
-                                rememberSharedContentState(key = "item_image_${item.id}"),
-                                animatedVisibilityScope = animatedVisibilityScope,
-                                boundsTransform = { _, _ -> tween(durationMillis = 400) }
-                            ),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .sharedElement(
-                                rememberSharedContentState(key = "item_image_${item.id}"),
-                                animatedVisibilityScope = animatedVisibilityScope,
-                                boundsTransform = { _, _ -> tween(durationMillis = 400) }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) { Text(item.itemType.emoji, fontSize = 60.sp) }
-                }
+        // OPTIMISATION : Gestion du chargement intégrée AU SEIN du Scaffold
+        if (currentData == null) {
+            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
+        } else {
+            // Grâce au Smart Cast, plus besoin de '!!'
+            val item = currentData.item
+            val tags = currentData.tags
+            val properties = currentData.properties
 
-            Column {
-                Text(text = item.title, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp)
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "${item.itemType.emoji} ${item.itemType.label}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
-                    if (item.status.isNotBlank()) {
-                        Text(text = " • ${item.status}", color = MaterialTheme.colorScheme.outline)
-                    }
-                }
-            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 24.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
 
-            if (tags.isNotEmpty()) {
-                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    tags.forEach { tag ->
+                with(sharedTransitionScope) {
+                    if (item.imageUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = item.imageUrl,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(250.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .sharedElement(
+                                    rememberSharedContentState(key = "item_image_${item.id}"),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                    boundsTransform = { _, _ -> tween(durationMillis = 400) }
+                                ),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
                         Box(
-                            modifier = Modifier.background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) { Text(text = tag.name, color = MaterialTheme.colorScheme.onSecondaryContainer, fontSize = 12.sp) }
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .sharedElement(
+                                    rememberSharedContentState(key = "item_image_${item.id}"),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                    boundsTransform = { _, _ -> tween(durationMillis = 400) }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) { Text(item.itemType.emoji, fontSize = 60.sp) }
                     }
                 }
-            }
 
-            if (properties.isNotEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(stringResource(R.string.title_details), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        HorizontalDivider(modifier = Modifier.padding(bottom = 4.dp))
-                        properties.forEach { prop ->
-                            if (prop.value.isNotBlank()) {
-                                Column {
-                                    Text(text = getLocalizedPropertyLabel(prop.label), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                                    Text(text = prop.value, fontSize = 16.sp, modifier = Modifier.padding(top = 2.dp))
+                Column {
+                    Text(text = item.title, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "${item.itemType.emoji} ${item.itemType.label}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+                        if (item.status.isNotBlank()) {
+                            Text(text = " • ${item.status}", color = MaterialTheme.colorScheme.outline)
+                        }
+                    }
+                }
+
+                if (tags.isNotEmpty()) {
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        tags.forEach { tag ->
+                            Box(
+                                modifier = Modifier.background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) { Text(text = tag.name, color = MaterialTheme.colorScheme.onSecondaryContainer, fontSize = 12.sp) }
+                        }
+                    }
+                }
+
+                if (properties.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(stringResource(R.string.title_details), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            HorizontalDivider(modifier = Modifier.padding(bottom = 4.dp))
+                            properties.forEach { prop ->
+                                if (prop.value.isNotBlank()) {
+                                    Column {
+                                        Text(text = getLocalizedPropertyLabel(prop.label), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                                        Text(text = prop.value, fontSize = 16.sp, modifier = Modifier.padding(top = 2.dp))
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            // CORRECTION DES BLOCS DE PRIX : Utilisation de Double
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            ) {
-                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.label_price), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                        val formattedPrice = remember(item.price) {
-                            if (item.price > 0.0) NumberFormat.getCurrencyInstance().format(item.price)
-                            else null
-                        }
-                        Text(text = formattedPrice ?: stringResource(R.string.not_specified_price), fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.label_purchase_date), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                        Text(text = item.purchaseDate.ifBlank { stringResource(R.string.not_specified) }, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-
-            if (item.isLoaned) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(stringResource(R.string.loan_status_title), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(stringResource(R.string.loan_status_active_to, item.loanTo), color = MaterialTheme.colorScheme.onTertiaryContainer)
-                        Text(stringResource(R.string.loan_status_active_since, item.loanDate), fontSize = 12.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f))
+                    Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.label_price), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                            val formattedPrice = remember(item.price) {
+                                if (item.price > 0.0) NumberFormat.getCurrencyInstance().format(item.price)
+                                else null
+                            }
+                            Text(text = formattedPrice ?: stringResource(R.string.not_specified_price), fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.label_purchase_date), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                            Text(text = item.purchaseDate.ifBlank { stringResource(R.string.not_specified) }, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        }
                     }
                 }
+
+                if (item.isLoaned) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(stringResource(R.string.loan_status_title), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(stringResource(R.string.loan_status_active_to, item.loanTo), color = MaterialTheme.colorScheme.onTertiaryContainer)
+                            Text(stringResource(R.string.loan_status_active_since, item.loanDate), fontSize = 12.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f))
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(40.dp))
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
-        }
-
-        if (showDeleteDialog) {
-            AlertDialog(
-                onDismissRequest = { showDeleteDialog = false },
-                title = { Text(stringResource(R.string.delete_item_title)) },
-                text = { Text(stringResource(R.string.delete_item_warning, item.title)) },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            viewModel.deleteItem(item)
-                            showDeleteDialog = false
-                            onBackClick()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text(stringResource(R.string.delete_folder).replace("la collection", "").trim()) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) }
-                }
-            )
+            if (showDeleteDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteDialog = false },
+                    title = { Text(stringResource(R.string.delete_item_title)) },
+                    text = { Text(stringResource(R.string.delete_item_warning, item.title)) },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                viewModel.deleteItem(item)
+                                showDeleteDialog = false
+                                onBackClick()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) { Text("Supprimer") } // OPTIMISATION : Retrait du hack textuel
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) }
+                    }
+                )
+            }
         }
     }
 }

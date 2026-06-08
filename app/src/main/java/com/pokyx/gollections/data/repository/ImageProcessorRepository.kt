@@ -31,7 +31,6 @@ class ImageProcessorRepository @Inject constructor(
         try {
             val maxSize = 1024
 
-            // 1. Décodage intelligent pour éviter l'OOM (Out Of Memory)
             val processedBitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val source = ImageDecoder.createSource(context.contentResolver, sourceUri)
                 ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
@@ -45,16 +44,12 @@ class ImageProcessorRepository @Inject constructor(
                     }
                 }
             } else {
-                // Fallback pour Android < P (API 28)
                 val options = BitmapFactory.Options()
-
-                // Étape A : Lire uniquement les dimensions (ne consomme pas de RAM)
                 options.inJustDecodeBounds = true
                 context.contentResolver.openInputStream(sourceUri)?.use { stream ->
                     BitmapFactory.decodeStream(stream, null, options)
                 }
 
-                // Étape B : Calculer le facteur de réduction (puissances de 2)
                 var inSampleSize = 1
                 if (options.outHeight > maxSize || options.outWidth > maxSize) {
                     val halfHeight: Int = options.outHeight / 2
@@ -64,7 +59,6 @@ class ImageProcessorRepository @Inject constructor(
                     }
                 }
 
-                // Étape C : Charger l'image réduite en mémoire
                 options.inJustDecodeBounds = false
                 options.inSampleSize = inSampleSize
                 options.inMutable = true
@@ -73,33 +67,52 @@ class ImageProcessorRepository @Inject constructor(
                     BitmapFactory.decodeStream(stream, null, options)
                 } ?: throw Exception("Impossible de décoder l'image")
 
-                // Ajustement final (car inSampleSize donne une image approximative)
                 resizeBitmap(roughBitmap, maxSize)
             }
 
-            if (!shouldCutout) {
-                return@withContext saveBitmapToInternalStorage(processedBitmap, isTransparent = false)
-            }
+            val finalBitmapToSave: Bitmap
+            val isTransparent: Boolean
 
-            val options = SubjectSegmenterOptions.Builder()
-                .enableForegroundBitmap()
-                .build()
-            val segmenter = SubjectSegmentation.getClient(options)
+            if (shouldCutout) {
+                val options = SubjectSegmenterOptions.Builder()
+                    .enableForegroundBitmap()
+                    .build()
+                val segmenter = SubjectSegmentation.getClient(options)
 
-            suspendCancellableCoroutine { continuation ->
-                segmenter.process(InputImage.fromBitmap(processedBitmap, 0))
-                    .addOnSuccessListener { result ->
-                        val cutoutBitmap = result.foregroundBitmap
-                        if (cutoutBitmap != null) {
-                            continuation.resume(saveBitmapToInternalStorage(cutoutBitmap, isTransparent = true))
-                        } else {
-                            continuation.resume(saveBitmapToInternalStorage(processedBitmap, isTransparent = false))
+                val cutoutBitmap = suspendCancellableCoroutine<Bitmap?> { continuation ->
+                    segmenter.process(InputImage.fromBitmap(processedBitmap, 0))
+                        .addOnSuccessListener { result ->
+                            continuation.resume(result.foregroundBitmap)
                         }
-                    }
-                    .addOnFailureListener {
-                        continuation.resume(saveBitmapToInternalStorage(processedBitmap, isTransparent = false))
-                    }
+                        .addOnFailureListener {
+                            continuation.resume(null)
+                        }
+                        .addOnCompleteListener {
+                            segmenter.close()
+                        }
+                }
+
+                if (cutoutBitmap != null) {
+                    finalBitmapToSave = cutoutBitmap
+                    isTransparent = true
+                } else {
+                    finalBitmapToSave = processedBitmap
+                    isTransparent = false
+                }
+            } else {
+                finalBitmapToSave = processedBitmap
+                isTransparent = false
             }
+
+            val savedUri = saveBitmapToInternalStorage(finalBitmapToSave, isTransparent)
+
+            if (finalBitmapToSave != processedBitmap) {
+                finalBitmapToSave.recycle()
+            }
+            processedBitmap.recycle()
+
+            return@withContext savedUri
+
         } catch (e: Exception) {
             Log.e("ImageProcessor", "Erreur lors du traitement de l'image", e)
             null
@@ -114,7 +127,6 @@ class ImageProcessorRepository @Inject constructor(
         val ratio = min(maxSize.toFloat() / width, maxSize.toFloat() / height)
         val newBitmap = Bitmap.createScaledBitmap(bitmap, (width * ratio).toInt(), (height * ratio).toInt(), true)
 
-        // Optimisation : Libérer immédiatement la mémoire de l'ancien bitmap
         if (newBitmap != bitmap) {
             bitmap.recycle()
         }

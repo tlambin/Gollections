@@ -7,12 +7,13 @@ import com.pokyx.gollections.data.CollectionItem
 import com.pokyx.gollections.data.ItemProperty
 
 data class CollectionItemWithTags(
-    @Embedded val item: CollectionItem,
+    @Embedded
+    val item: CollectionItem,
 
+    // Relation Many-to-Many avec table de jointure (Junction)
     @Relation(
         parentColumn = "id",
         entityColumn = "id",
-        // C'est ici qu'il manquait la précision des colonnes pour la table de jointure :
         associateBy = Junction(
             value = CollectionItemTagCrossRef::class,
             parentColumn = "itemId",
@@ -21,6 +22,7 @@ data class CollectionItemWithTags(
     )
     val tags: List<Tag>,
 
+    // Relation One-to-Many standard
     @Relation(
         parentColumn = "id",
         entityColumn = "itemId"

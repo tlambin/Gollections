@@ -15,8 +15,10 @@ enum class ItemType(val label: String, val emoji: String) {
 }
 
 class Converters {
+    // OPTIMISATION : Accès direct sécurisé sans bloc try/catch coûteux
     @TypeConverter
-    fun toItemType(value: String): ItemType = try { enumValueOf<ItemType>(value) } catch (e: Exception) { ItemType.OTHER }
+    fun toItemType(value: String): ItemType =
+        ItemType.entries.find { it.name == value } ?: ItemType.OTHER
 
     @TypeConverter
     fun fromItemType(value: ItemType): String = value.name
@@ -48,5 +50,5 @@ data class CollectionItem(
     val status: String = "Non commencé",
     val comment: String = "",
     val imageUrl: String = "",
-    val itemType: ItemType = ItemType.OTHER // <-- Modifié ici
+    val itemType: ItemType = ItemType.OTHER
 )

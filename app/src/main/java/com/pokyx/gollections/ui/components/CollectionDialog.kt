@@ -14,7 +14,6 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +59,92 @@ fun CollectionDialog(
         }
     }
 
+    // OPTIMISATION : Calcul de l'emoji mis en cache. Ne se recalcule que si 'cover' ou 'name' change.
+    val fallbackName = name.ifBlank { "dossier" }
+    val displayEmoji = remember(cover, fallbackName) {
+        if (cover.isNotBlank() && !cover.startsWith("file") && !cover.startsWith("content") && !cover.startsWith("http") && !cover.startsWith("/")) {
+            cover
+        } else if (cover.isBlank()) {
+            getEmojiForCollection(fallbackName)
+        } else ""
+    }
+
+    // --- DIALOGS SECONDAIRES (Sortis de la hiérarchie du AlertDialog principal) ---
+    if (showMenu) {
+        AlertDialog(
+            onDismissRequest = { showMenu = false },
+            title = { Text("Source de l'illustration", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    // URL
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable { showMenu = false; showUrlDialog = true }.padding(8.dp)
+                    ) {
+                        Icon(imageVector = GollectionsIcons.Planet, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("URL", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+
+                    // Galerie
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable { showMenu = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)
+                    ) {
+                        Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Galerie", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+
+                    // Emoji
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable {
+                            showMenu = false
+                            tempEmoji = if (!cover.startsWith("file") && !cover.startsWith("content") && !cover.startsWith("/") && !cover.startsWith("http")) cover else ""
+                            showEmojiInput = true
+                        }.padding(8.dp)
+                    ) {
+                        Icon(imageVector = GollectionsIcons.Smile, contentDescription = "Emoji", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Emoji", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            },
+            confirmButton = {
+                if (cover.isNotBlank()) {
+                    TextButton(onClick = { showMenu = false; cover = "" }) { Text(stringResource(R.string.reset_cover), color = MaterialTheme.colorScheme.error) }
+                }
+                TextButton(onClick = { showMenu = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
+    if (showUrlDialog) {
+        AlertDialog(
+            onDismissRequest = { showUrlDialog = false },
+            title = { Text("Lien de l'image (URL)", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = urlInput,
+                    onValueChange = { urlInput = it },
+                    label = { Text("Coller l'URL de l'image ici") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (urlInput.isNotBlank()) cover = urlInput.trim()
+                    showUrlDialog = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showUrlDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+
+    // --- DIALOG PRINCIPAL ---
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, fontWeight = FontWeight.Bold) },
@@ -69,6 +154,7 @@ fun CollectionDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
+                // Zone de l'image / Emoji
                 Box(contentAlignment = Alignment.Center) {
                     Box(
                         modifier = Modifier
@@ -88,11 +174,11 @@ fun CollectionDialog(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            val displayEmoji = if (cover.isNotBlank()) cover else getEmojiForCollection(name.ifBlank { "dossier" })
                             Text(text = displayEmoji, fontSize = 40.sp)
                         }
                     }
 
+                    // Bouton Edition (Petit crayon)
                     if (!isProcessing) {
                         Box(
                             modifier = Modifier
@@ -106,75 +192,14 @@ fun CollectionDialog(
                             Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(14.dp))
                         }
                     }
-
-                    if (showMenu) {
-                        AlertDialog(
-                            onDismissRequest = { showMenu = false },
-                            title = { Text("Source de l'illustration", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
-                            text = {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-
-                                    // URL (Planète)
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showMenu = false; showUrlDialog = true }.padding(8.dp)) {
-                                        Icon(imageVector = GollectionsIcons.Planet, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text("URL", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                                    }
-
-                                    // Galerie (Montagnes)
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showMenu = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)) {
-                                        Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text("Galerie", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                                    }
-
-                                    // Emoji (Smile)
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showMenu = false; tempEmoji = if (!cover.startsWith("file") && !cover.startsWith("content") && !cover.startsWith("/") && !cover.startsWith("http")) cover else ""; showEmojiInput = true }.padding(8.dp)) {
-                                        Icon(imageVector = GollectionsIcons.Smile, contentDescription = "Emoji", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text("Emoji", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                if (cover.isNotBlank()) {
-                                    TextButton(onClick = { showMenu = false; cover = "" }) { Text(stringResource(R.string.reset_cover), color = MaterialTheme.colorScheme.error) }
-                                }
-                                TextButton(onClick = { showMenu = false }) { Text(stringResource(R.string.cancel)) }
-                            }
-                        )
-                    }
                 }
 
-                if (showUrlDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showUrlDialog = false },
-                        title = { Text("Lien de l'image (URL)", fontWeight = FontWeight.Bold) },
-                        text = {
-                            OutlinedTextField(
-                                value = urlInput,
-                                onValueChange = { urlInput = it },
-                                label = { Text("Coller l'URL de l'image ici") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                        },
-                        confirmButton = {
-                            Button(onClick = {
-                                if (urlInput.isNotBlank()) cover = urlInput.trim()
-                                showUrlDialog = false
-                            }) { Text("OK") }
-                        },
-                        dismissButton = { TextButton(onClick = { showUrlDialog = false }) { Text(stringResource(R.string.cancel)) } }
-                    )
-                }
-
+                // Champ optionnel pour l'Emoji (S'affiche sous l'image de manière fluide)
                 if (showEmojiInput) {
                     OutlinedTextField(
                         value = tempEmoji,
                         onValueChange = { input ->
-                            if (input.length <= 4) {
+                            if (input.length <= 4) { // Limite pour éviter les textes longs
                                 tempEmoji = input
                                 if (input.isNotBlank()) cover = input
                             }
@@ -187,6 +212,7 @@ fun CollectionDialog(
                     )
                 }
 
+                // Nom du dossier
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },

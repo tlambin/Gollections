@@ -20,21 +20,22 @@ enum class LanguageConfig(val tag: String, val title: String) { FR("fr", "Franç
 class PreferencesManager @Inject constructor(@ApplicationContext context: Context) {
     private val dataStore = context.dataStore
 
-    // On transforme la String sauvegardée en un Enum strict. En cas d'erreur (ancienne valeur), on force "SYSTEM"
     val themeFlow: Flow<ThemeConfig> = dataStore.data.map { prefs ->
         val savedValue = prefs[THEME_KEY] ?: ThemeConfig.SYSTEM.name
-        runCatching { ThemeConfig.valueOf(savedValue) }.getOrDefault(ThemeConfig.SYSTEM)
+        ThemeConfig.entries.find { it.name == savedValue } ?: ThemeConfig.SYSTEM
     }
 
     val dynamicColorsFlow: Flow<Boolean> = dataStore.data.map { it[DYNAMIC_COLORS_KEY] ?: true }
 
     val languageFlow: Flow<LanguageConfig> = dataStore.data.map { prefs ->
         val savedValue = prefs[LANGUAGE_KEY] ?: LanguageConfig.FR.name
-        runCatching { LanguageConfig.valueOf(savedValue) }.getOrDefault(LanguageConfig.FR)
+        LanguageConfig.entries.find { it.name == savedValue } ?: LanguageConfig.FR
     }
 
     suspend fun updateTheme(theme: ThemeConfig) { dataStore.edit { it[THEME_KEY] = theme.name } }
+
     suspend fun updateDynamicColors(useDynamic: Boolean) { dataStore.edit { it[DYNAMIC_COLORS_KEY] = useDynamic } }
+
     suspend fun updateLanguage(lang: LanguageConfig) { dataStore.edit { it[LANGUAGE_KEY] = lang.name } }
 
     companion object {

@@ -10,10 +10,20 @@ import com.pokyx.gollections.data.preferences.PreferencesManager
 import com.pokyx.gollections.data.preferences.ThemeConfig
 import com.pokyx.gollections.data.repository.BackupRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+// OPTIMISATION : Création d'une classe scellée pour les événements UI (Toasts, Snackbar...)
+sealed class ProfileUiEvent {
+    object ExportSuccess : ProfileUiEvent()
+    data class ExportError(val message: String?) : ProfileUiEvent()
+    object ImportSuccess : ProfileUiEvent()
+    data class ImportError(val message: String?) : ProfileUiEvent()
+}
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
@@ -25,6 +35,10 @@ class ProfileViewModel @Inject constructor(
     val dynamicColors = prefs.dynamicColorsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val language = prefs.languageFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LanguageConfig.FR)
 
+    // OPTIMISATION : Utilisation d'un Channel à la place des Callbacks
+    private val _uiEvent = Channel<ProfileUiEvent>()
+    val uiEvent = _uiEvent.receiveAsFlow()
+
     fun setTheme(theme: ThemeConfig) = viewModelScope.launch { prefs.updateTheme(theme) }
     fun setDynamicColors(use: Boolean) = viewModelScope.launch { prefs.updateDynamicColors(use) }
 
@@ -35,17 +49,25 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun exportDatabase(uri: Uri, onResult: (Boolean) -> Unit) {
+    fun exportDatabase(uri: Uri) {
         viewModelScope.launch {
             val result = backupRepository.exportDatabase(uri)
-            onResult(result.isSuccess)
+            if (result.isSuccess) {
+                _uiEvent.send(ProfileUiEvent.ExportSuccess)
+            } else {
+                _uiEvent.send(ProfileUiEvent.ExportError(result.exceptionOrNull()?.localizedMessage))
+            }
         }
     }
 
-    fun importDatabase(uri: Uri, onResult: (Boolean, String?) -> Unit) {
+    fun importDatabase(uri: Uri) {
         viewModelScope.launch {
             val result = backupRepository.importDatabase(uri)
-            onResult(result.isSuccess, result.exceptionOrNull()?.localizedMessage)
+            if (result.isSuccess) {
+                _uiEvent.send(ProfileUiEvent.ImportSuccess)
+            } else {
+                _uiEvent.send(ProfileUiEvent.ImportError(result.exceptionOrNull()?.localizedMessage))
+            }
         }
     }
 }

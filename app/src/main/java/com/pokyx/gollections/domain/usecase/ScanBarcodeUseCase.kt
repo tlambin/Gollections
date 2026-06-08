@@ -1,6 +1,8 @@
 package com.pokyx.gollections.domain.usecase
 
 import com.pokyx.gollections.data.repository.BarcodeRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 // Data class pour structurer proprement la réponse envoyée au ViewModel
@@ -13,24 +15,21 @@ data class BarcodeResult(
 class ScanBarcodeUseCase @Inject constructor(
     private val barcodeRepository: BarcodeRepository
 ) {
-    suspend operator fun invoke(barcode: String): BarcodeResult {
-        val result = barcodeRepository.getInfoFromBarcode(barcode)
-
-        return if (result.isSuccess) {
-            // Typage fort et sécurisé : on récupère directement l'objet ScannedItemInfo
-            val info = result.getOrNull()
-
-            BarcodeResult(
-                title = info?.title,
-                imageUrl = info?.imageUrl
-            )
-        } else {
-            val exception = result.exceptionOrNull()
-            // L'exception contient déjà la clé d'erreur formatée par le Repository
-            // (ex: "error_scan_limit", "error_network", "error_scan_not_found")
-            val errorMessage = exception?.message ?: "error_unknown"
-
-            BarcodeResult(errorMsg = errorMessage)
-        }
+    suspend operator fun invoke(barcode: String): BarcodeResult = withContext(Dispatchers.IO) {
+        // OPTIMISATION : Utilisation de 'fold' pour gérer proprement le Result natif
+        barcodeRepository.getInfoFromBarcode(barcode).fold(
+            onSuccess = { info ->
+                // Cas de succès : 'info' est directement du type ScannedItemInfo (non nullable si le repo le renvoie ainsi)
+                BarcodeResult(
+                    title = info?.title,
+                    imageUrl = info?.imageUrl
+                )
+            },
+            onFailure = { exception ->
+                // Cas d'erreur : on extrait directement le message
+                val errorMessage = exception.message ?: "error_unknown"
+                BarcodeResult(errorMsg = errorMessage)
+            }
+        )
     }
 }

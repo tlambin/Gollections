@@ -19,6 +19,9 @@ class CollectionRepository @Inject constructor(
     suspend fun updateCollection(collection: Collection) = collectionDao.updateCollection(collection)
     suspend fun deleteCollection(collection: Collection) = collectionDao.deleteCollection(collection)
     suspend fun deleteCollectionById(id: Long) = collectionDao.deleteCollectionById(id)
-    suspend fun renameCollection(id: Long, newName: String) = collectionDao.renameCollection(id, newName)
+
+    suspend fun updateCollectionDetails(id: Long, newName: String, newCover: String) =
+        collectionDao.updateCollectionDetails(id, newName, newCover)
+
     suspend fun updateParentId(id: Long, newParentId: Long?) = collectionDao.updateParentId(id, newParentId)
 }

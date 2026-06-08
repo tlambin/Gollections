@@ -15,7 +15,7 @@ class UpdateItemUseCase @Inject constructor(
         tags: List<Tag>,
         properties: Map<String, String>
     ) = withContext(Dispatchers.IO) {
-        // CORRIGÉ : On délègue tout à l'opération sécurisée par Transaction
+        // La transaction du DAO s'occupe de nettoyer les anciens liens et de créer les nouveaux
         itemRepository.updateItemComplete(item, tags, properties)
     }
 }

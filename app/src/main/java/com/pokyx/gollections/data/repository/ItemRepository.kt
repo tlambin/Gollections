@@ -34,13 +34,13 @@ class ItemRepository @Inject constructor(
     fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = itemDao.getItemByIdWithTags(id)
 
     fun getTotalCountRecursive(collectionId: Long): Flow<Int> = itemDao.getTotalCountRecursive(collectionId)
-    fun getTotalValueRecursive(collectionId: Long): Flow<Double?> = itemDao.getTotalValueRecursive(collectionId)
+
+    fun getTotalValueRecursive(collectionId: Long): Flow<Double> = itemDao.getTotalValueRecursive(collectionId)
 
     suspend fun insertItem(item: CollectionItem): Long = itemDao.insertItem(item)
     suspend fun updateItem(item: CollectionItem) = itemDao.updateItem(item)
     suspend fun deleteItem(item: CollectionItem) = itemDao.deleteItem(item)
 
-    // --- NOUVEAU : Exposer les fonctions transactionnelles complètes ---
     suspend fun insertItemComplete(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>): Long =
         itemDao.insertItemComplete(item, tags, properties)
 

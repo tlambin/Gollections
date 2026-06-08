@@ -119,7 +119,7 @@ interface CollectionItemDao {
         sortOption: String
     ): androidx.paging.PagingSource<Int, CollectionItemWithTags>
 
-    // --- NOUVEAU : TRANSACTIONS SÉCURISÉES ---
+    // --- TRANSACTIONS SÉCURISÉES ---
 
     @Transaction
     suspend fun insertItemComplete(
@@ -127,15 +127,12 @@ interface CollectionItemDao {
         tags: List<Tag>,
         properties: Map<String, String>
     ): Long {
-        // 1. Sauvegarde de l'item ET récupération de son ID
         val itemId = insertItem(item).toInt()
 
-        // 2. Création et sauvegarde des liens de Tags
         tags.forEach { tag ->
             insertItemTagCrossRef(CollectionItemTagCrossRef(itemId, tag.id))
         }
 
-        // 3. Création et sauvegarde des Propriétés
         val itemProperties = properties.map { (key, value) ->
             ItemProperty(itemId = itemId, label = key, value = value)
         }
@@ -153,7 +150,7 @@ interface CollectionItemDao {
         properties: Map<String, String>
     ) {
         updateItem(item)
-        val itemId = item.id // On utilise l'ID existant de l'item
+        val itemId = item.id
 
         clearTagsForItem(itemId)
         tags.forEach { tag ->
@@ -169,8 +166,7 @@ interface CollectionItemDao {
         }
     }
 
-    // --- NOUVELLES REQUÊTES OPTIMISÉES (CTE RÉCURSIVES) ---
-
+    // --- REQUÊTES OPTIMISÉES (CTE RÉCURSIVES) ---
 
     @Query("""
         WITH RECURSIVE CollectionTree AS (
@@ -180,15 +176,16 @@ interface CollectionItemDao {
         )
         SELECT COUNT(id) FROM collection_items WHERE collectionId IN CollectionTree
     """)
-    fun getTotalCountRecursive(collectionId: Long): kotlinx.coroutines.flow.Flow<Int>
+    fun getTotalCountRecursive(collectionId: Long): Flow<Int>
 
+    // OPTIMISATION : Ajout de COALESCE pour garantir un Double non-nullable
     @Query("""
         WITH RECURSIVE CollectionTree AS (
             SELECT id FROM collections WHERE id = :collectionId
             UNION ALL
             SELECT c.id FROM collections c INNER JOIN CollectionTree ct ON c.parentId = ct.id
         )
-        SELECT SUM(price) FROM collection_items WHERE collectionId IN CollectionTree
+        SELECT COALESCE(SUM(price), 0.0) FROM collection_items WHERE collectionId IN CollectionTree
     """)
-    fun getTotalValueRecursive(collectionId: Long): kotlinx.coroutines.flow.Flow<Double?>
+    fun getTotalValueRecursive(collectionId: Long): Flow<Double>
 }

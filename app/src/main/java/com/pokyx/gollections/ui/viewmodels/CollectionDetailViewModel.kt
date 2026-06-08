@@ -3,35 +3,35 @@ package com.pokyx.gollections.ui.viewmodels
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ItemRepository
 import com.pokyx.gollections.data.repository.TagRepository
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
 import com.pokyx.gollections.data.tag.Tag
-import com.pokyx.gollections.domain.usecase.GetCollectionDescendantsUseCase
 import com.pokyx.gollections.domain.usecase.DeleteCollectionUseCase
+import com.pokyx.gollections.domain.usecase.GetCollectionDescendantsUseCase
 import com.pokyx.gollections.domain.usecase.ProcessImageUseCase
 import com.pokyx.gollections.domain.usecase.ScanBarcodeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOn
-import androidx.paging.PagingData
-import androidx.paging.cachedIn
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.receiveAsFlow
 
 @HiltViewModel
 class CollectionDetailViewModel @Inject constructor(
@@ -60,18 +60,28 @@ class CollectionDetailViewModel @Inject constructor(
             .flowOn(Dispatchers.IO)
     }
 
-    fun insertCollection(name: String, cover: String = "", parentId: Long? = null) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) } }
-    fun deleteCollection(collectionId: Long) { viewModelScope.launch(Dispatchers.IO) { deleteCollectionUseCase(collectionId, allCollections.value) } }
-    fun renameCollection(id: Long, newName: String) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.renameCollection(id, newName) } }
-    fun updateCollectionParent(id: Long, newParentId: Long?) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.updateParentId(id, newParentId) } }
-    fun updateCollection(collection: Collection) { viewModelScope.launch(Dispatchers.IO) { collectionRepository.updateCollection(collection) } }
+    // --- NETTOYAGE : Suppression des Dispatchers.IO redondants ---
 
+    fun insertCollection(name: String, cover: String = "", parentId: Long? = null) {
+        viewModelScope.launch { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) }
+    }
+
+    fun deleteCollection(collectionId: Long) {
+        viewModelScope.launch { deleteCollectionUseCase(collectionId, allCollections.value) }
+    }
+
+    fun updateCollectionParent(id: Long, newParentId: Long?) {
+        viewModelScope.launch { collectionRepository.updateParentId(id, newParentId) }
+    }
+
+    fun updateCollection(collection: Collection) {
+        viewModelScope.launch { collectionRepository.updateCollection(collection) }
+    }
+
+    // --- OPTIMISATION : Utilisation de la mise à jour partielle directe via le Repository ---
     fun updateCollection(collectionId: Long, newName: String, newCover: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val collection = collectionRepository.getCollectionById(collectionId)
-            if (collection != null) {
-                collectionRepository.updateCollection(collection.copy(name = newName, cover = newCover))
-            }
+        viewModelScope.launch {
+            collectionRepository.updateCollectionDetails(collectionId, newName, newCover)
         }
     }
 
@@ -81,15 +91,24 @@ class CollectionDetailViewModel @Inject constructor(
     }
 
     fun getTagsForCollections(collectionIds: List<Long>): Flow<List<Tag>> = if (collectionIds.isEmpty()) flowOf(emptyList()) else tagRepository.getTagsByCollectionIds(collectionIds)
-    fun insertTag(name: String, collectionId: Long) { viewModelScope.launch(Dispatchers.IO) { tagRepository.insertTag(Tag(name = name, collectionId = collectionId)) } }
-    fun deleteTag(tag: Tag) { viewModelScope.launch(Dispatchers.IO) { tagRepository.deleteTag(tag) } }
-    fun renameTag(collectionId: Long, oldName: String, newName: String) { viewModelScope.launch(Dispatchers.IO) { tagRepository.renameTag(collectionId, oldName, newName) } }
+
+    fun insertTag(name: String, collectionId: Long) {
+        viewModelScope.launch { tagRepository.insertTag(Tag(name = name, collectionId = collectionId)) }
+    }
+
+    fun deleteTag(tag: Tag) {
+        viewModelScope.launch { tagRepository.deleteTag(tag) }
+    }
+
+    fun renameTag(collectionId: Long, oldName: String, newName: String) {
+        viewModelScope.launch { tagRepository.renameTag(collectionId, oldName, newName) }
+    }
 
     fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
         viewModelScope.launch { onResult(processImageUseCase(sourceUri, shouldCutout)) }
     }
 
-    // --- MISE À JOUR : Utilisation du Channel ---
+    // --- GESTION DU SCAN ---
     private val _scanEvent = Channel<ScanEvent>()
     val scanEvent = _scanEvent.receiveAsFlow()
 
@@ -104,8 +123,8 @@ class CollectionDetailViewModel @Inject constructor(
             }
         }
     }
-    // ------------------------------------------------------
 
+    // --- FILTRES ET RECHERCHE ---
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
     private val _tagFilter = MutableStateFlow("Toutes")
@@ -118,7 +137,7 @@ class CollectionDetailViewModel @Inject constructor(
     fun updateSortOption(option: String) { _sortOption.value = option }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun getPagedItems(collectionId: Long): Flow<PagingData<com.pokyx.gollections.data.tag.CollectionItemWithTags>> {
+    fun getPagedItems(collectionId: Long): Flow<PagingData<CollectionItemWithTags>> {
         return combine(_searchQuery, _tagFilter, _sortOption) { query, tag, sort -> Triple(query, tag, sort) }
             .flatMapLatest { (query, tag, sort) -> itemRepository.getPagedItemsWithFilters(collectionId, query, tag, sort) }
             .cachedIn(viewModelScope)

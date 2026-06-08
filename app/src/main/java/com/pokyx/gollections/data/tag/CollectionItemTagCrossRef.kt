@@ -22,7 +22,7 @@ import com.pokyx.gollections.data.CollectionItem
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["tagId"]), Index(value = ["itemId"])]
+    indices = [Index(value = ["tagId"])]
 )
 data class CollectionItemTagCrossRef(
     val itemId: Int,

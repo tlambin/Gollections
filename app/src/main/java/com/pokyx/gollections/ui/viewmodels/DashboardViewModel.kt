@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed class ScanEvent {
-    object Searching : ScanEvent()
+    data object Searching : ScanEvent()
     data class Success(val title: String?, val imageUrl: String?) : ScanEvent()
     data class Error(val message: String) : ScanEvent()
 }
@@ -42,13 +42,20 @@ class DashboardViewModel @Inject constructor(
     private val scanBarcodeUseCase: ScanBarcodeUseCase
 ) : ViewModel() {
 
-    val collections = collectionRepository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val rootCollections = collectionRepository.getRootCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val collections = collectionRepository.getAllCollections()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val totalItemsCount = itemRepository.getTotalItemsCount().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
-    val loanedItemsCount = itemRepository.getLoanedItemsCount().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    val rootCollections = collectionRepository.getRootCollections()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val itemCountsPerCollection = itemRepository.getItemCountsPerCollection().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList<CollectionItemCount>())
+    val totalItemsCount = itemRepository.getTotalItemsCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val loanedItemsCount = itemRepository.getLoanedItemsCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    private val itemCountsPerCollection = itemRepository.getItemCountsPerCollection()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList<CollectionItemCount>())
 
     val collectionItemCounts = combine(collections, itemCountsPerCollection) { allColls, countsList ->
         val flatCounts = countsList.associateBy({ it.collectionId }, { it.count })
@@ -67,14 +74,17 @@ class DashboardViewModel @Inject constructor(
         if (query.isBlank()) flowOf(emptyList()) else itemRepository.searchItemsWithTags(query)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // UTILISATION D'UN CHANNEL POUR LES ÉVÉNEMENTS UNIQUES
     private val _scanEvent = Channel<ScanEvent>()
     val scanEvent = _scanEvent.receiveAsFlow()
 
-    fun updateSearchQuery(query: String) { _searchQuery.value = query }
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
 
     fun insertCollection(name: String, cover: String = "", parentId: Long? = null) {
-        viewModelScope.launch(Dispatchers.IO) { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) }
+        viewModelScope.launch {
+            collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId))
+        }
     }
 
     fun processAndSaveImage(sourceUri: Uri, shouldCutout: Boolean, onResult: (String?) -> Unit) {
@@ -86,7 +96,6 @@ class DashboardViewModel @Inject constructor(
 
     fun fetchItemFromBarcode(barcode: String) {
         viewModelScope.launch {
-            // Utilisation de .send() au lieu de .value pour un Channel
             _scanEvent.send(ScanEvent.Searching)
             val result = scanBarcodeUseCase(barcode)
             if (result.title != null) {

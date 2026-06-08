@@ -10,12 +10,13 @@ import javax.inject.Inject
 class InsertItemUseCase @Inject constructor(
     private val itemRepository: ItemRepository
 ) {
+    // OPTIMISATION : Ajout du type de retour ": Long" pour rendre le contrat clair pour le ViewModel
     suspend operator fun invoke(
         item: CollectionItem,
         tags: List<Tag>,
         properties: Map<String, String>
-    ) = withContext(Dispatchers.IO) {
-        // CORRIGÉ : On délègue tout à l'opération sécurisée par Transaction
+    ): Long = withContext(Dispatchers.IO) {
+        // On délègue tout à l'opération sécurisée par Transaction du DAO
         itemRepository.insertItemComplete(item, tags, properties)
     }
 }

@@ -1,7 +1,7 @@
 package com.pokyx.gollections.data
 
 import android.content.Context
-import androidx.room.AutoMigration // <-- Import ajouté
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -19,7 +19,11 @@ import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
         ItemProperty::class,
         CollectionItemFts::class
     ],
-    version = 15,
+    version = 17,
+    autoMigrations = [
+        AutoMigration(from = 15, to = 16),
+        AutoMigration(from = 16, to = 17)
+    ],
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -41,7 +45,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "gollections_database"
                 )
-                    .fallbackToDestructiveMigration(true)
+                    // OPTIMISATION CRITIQUE : Suppression de .fallbackToDestructiveMigration(true)
+                    // La base de données ne sera plus jamais effacée accidentellement !
                     .build()
                 INSTANCE = instance
                 instance

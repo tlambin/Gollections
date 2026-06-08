@@ -1,5 +1,6 @@
 package com.pokyx.gollections.ui.screens
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -79,6 +80,9 @@ fun CollectionDetailScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    val barcodeScanner = remember(context) { BarcodeScanner(context) }
+
     val allCollections by viewModel.allCollections.collectAsStateWithLifecycle()
 
     val currentCollection = allCollections.find { it.id == collectionId }
@@ -212,8 +216,15 @@ fun CollectionDetailScreen(
                 onToggle = { isFabExpanded = !isFabExpanded },
                 onScanClick = {
                     isFabExpanded = false
-                    val barcodeScanner = BarcodeScanner(context)
-                    barcodeScanner.startScan(onScanSuccess = { barcode -> viewModel.fetchItemFromBarcode(barcode) }, onScanFailure = { })
+                    // Appel propre via coroutine
+                    scope.launch {
+                        try {
+                            val barcode = barcodeScanner.startScan()
+                            viewModel.fetchItemFromBarcode(barcode)
+                        } catch (e: Exception) {
+                            Log.e("BarcodeScan", "Erreur ou annulation : ${e.message}")
+                        }
+                    }
                 },
                 onCreateFolderClick = { isFabExpanded = false; showAddSubCollectionDialog = true },
                 onAddItemClick = { isFabExpanded = false; onAddItemClick(null, null) }

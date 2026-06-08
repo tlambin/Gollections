@@ -50,6 +50,7 @@ import com.pokyx.gollections.utils.getUnitForCollection
 import com.pokyx.gollections.ui.components.*
 import androidx.compose.material.icons.filled.Person
 import kotlinx.coroutines.launch
+import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,6 +62,9 @@ fun DashboardScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Optimisation : On mémorise le scanner pour éviter de le recréer à chaque clic
+    val barcodeScanner = remember(context) { BarcodeScanner(context) }
 
     val rootCollections by viewModel.rootCollections.collectAsStateWithLifecycle()
     val allCollections by viewModel.collections.collectAsStateWithLifecycle()
@@ -77,7 +81,6 @@ fun DashboardScreen(
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    // --- MISE À JOUR : Gestion des Snackbars ---
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -126,11 +129,14 @@ fun DashboardScreen(
                 onToggle = { isFabExpanded = !isFabExpanded },
                 onScanClick = {
                     isFabExpanded = false
-                    val barcodeScanner = BarcodeScanner(context)
-                    barcodeScanner.startScan(
-                        onScanSuccess = { barcode -> viewModel.fetchItemFromBarcode(barcode) },
-                        onScanFailure = { exception -> android.util.Log.e("BarcodeScan", "Erreur : ${exception.message}") }
-                    )
+                    scope.launch { // On lance une coroutine grâce au scope de l'UI
+                        try {
+                            val barcode = barcodeScanner.startScan()
+                            viewModel.fetchItemFromBarcode(barcode)
+                        } catch (e: Exception) {
+                            android.util.Log.e("BarcodeScan", "Erreur ou annulation : ${e.message}")
+                        }
+                    }
                 },
                 onCreateFolderClick = { isFabExpanded = false; showAddCollectionDialog = true },
                 onAddItemClick = { isFabExpanded = false; onAddItemClick(null, null) }

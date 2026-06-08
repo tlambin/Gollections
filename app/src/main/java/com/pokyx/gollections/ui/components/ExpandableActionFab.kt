@@ -27,7 +27,7 @@ import com.pokyx.gollections.R
 @Composable
 fun ExpandableActionFab(
     isExpanded: Boolean,
-    createFolderText: String, // <-- LE PARAMÈTRE MANQUANT EST LÀ
+    createFolderText: String,
     onToggle: () -> Unit,
     onScanClick: () -> Unit,
     onCreateFolderClick: () -> Unit,
@@ -46,12 +46,12 @@ fun ExpandableActionFab(
             ) {
                 MultiFabItem(
                     text = stringResource(R.string.action_scan),
-                    icon = CameraIcon, // Tes propres icônes !
+                    icon = CameraIcon, // Composant externe présumé
                     onClick = onScanClick
                 )
                 MultiFabItem(
-                    text = createFolderText, // <-- UTILISATION DU PARAMÈTRE ICI
-                    icon = FolderIcon, // Tes propres icônes !
+                    text = createFolderText,
+                    icon = FolderIcon, // Composant externe présumé
                     onClick = onCreateFolderClick
                 )
                 MultiFabItem(
@@ -68,7 +68,11 @@ fun ExpandableActionFab(
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         ) {
             val rotation by animateFloatAsState(targetValue = if (isExpanded) 45f else 0f, label = "fab_rotation")
-            Icon(Icons.Default.Add, contentDescription = "Menu Actions", modifier = Modifier.size(28.dp).rotate(rotation))
+            Icon(
+                Icons.Default.Add,
+                contentDescription = if (isExpanded) "Fermer le menu" else "Ouvrir le menu actions", // Micro-optimisation d'accessibilité
+                modifier = Modifier.size(28.dp).rotate(rotation)
+            )
         }
     }
 }

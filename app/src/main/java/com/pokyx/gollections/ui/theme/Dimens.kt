@@ -25,6 +25,7 @@ object Dimens {
     val cornerLarge = 16.dp
 
     // Tailles de texte (Text Sizes)
+    val textBadge = 11.sp
     val textCaption = 12.sp
     val textBody = 14.sp
     val textSubtitle = 16.sp
