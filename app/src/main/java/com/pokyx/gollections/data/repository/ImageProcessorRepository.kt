@@ -111,11 +111,25 @@ class ImageProcessorRepository @Inject constructor(
             }
             processedBitmap.recycle()
 
+            // OPTIMISATION CACHE CRITIQUE : Suppression du fichier brut (JPG) après traitement !
+            clearTemporaryCameraFiles()
+
             return@withContext savedUri
 
         } catch (e: Exception) {
             Log.e("ImageProcessor", "Erreur lors du traitement de l'image", e)
             null
+        }
+    }
+
+    private fun clearTemporaryCameraFiles() {
+        try {
+            // Nettoie tous les fichiers qui commencent par "cam_" dans le cache
+            context.cacheDir.listFiles { file ->
+                file.name.startsWith("cam_") || file.name.endsWith(".tmp")
+            }?.forEach { it.delete() }
+        } catch (e: Exception) {
+            Log.e("ImageProcessor", "Erreur lors du nettoyage du cache", e)
         }
     }
 
