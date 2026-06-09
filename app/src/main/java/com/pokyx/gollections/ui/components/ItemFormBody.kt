@@ -7,21 +7,21 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -34,290 +34,326 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
-import com.pokyx.gollections.data.ItemType
 import com.pokyx.gollections.ui.theme.GollectionsIcons
 import com.pokyx.gollections.ui.viewmodels.ItemFormState
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
-import com.pokyx.gollections.utils.AddTagDialog
-import com.pokyx.gollections.utils.getDynamicStatusOptions
+import com.pokyx.gollections.utils.getEmojiForCollection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+
+enum class DisplayFormat(val ratio: Float, val label: String) {
+    PORTRAIT(3f / 4f, "Portrait"),
+    LANDSCAPE(16f / 9f, "Paysage")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ItemFormBody(
     viewModel: ItemViewModel,
-    buttonText: String,
-    onSaveClick: (ItemFormState) -> Unit
+    onCollectionClick: () -> Unit,
+    onTypeClick: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-
     val state by viewModel.formState.collectAsStateWithLifecycle()
     val collectionsList by viewModel.collections.collectAsStateWithLifecycle()
 
-    val finalSelectedId = state.selectedPath.lastOrNull()
-    val finalSelectedName = collectionsList.find { it.id == finalSelectedId }?.name ?: ""
-
-    val dbTags by remember(state.selectedPath) { viewModel.getTagsForCollections(state.selectedPath) }.collectAsStateWithLifecycle(initialValue = emptyList())
-    val uniqueTags = remember(dbTags) { dbTags.distinctBy { it.name } }
-
-    var showAddTagDialog by remember { mutableStateOf(false) }
-    var showPurchaseDatePicker by remember { mutableStateOf(false) }
-    val purchaseDatePickerState = rememberDatePickerState()
-    var showLoanDatePicker by remember { mutableStateOf(false) }
-    val loanDatePickerState = rememberDatePickerState()
+    val finalSelectedCollection = collectionsList.find { it.id == state.selectedPath.lastOrNull() }
+    val finalSelectedName = finalSelectedCollection?.name ?: "Choisir un dossier"
+    val finalSelectedCover = finalSelectedCollection?.cover ?: ""
 
     var showSourceDialog by remember { mutableStateOf(false) }
     var showUrlDialog by remember { mutableStateOf(false) }
     var urlInput by remember { mutableStateOf("") }
     var isProcessingImage by remember { mutableStateOf(false) }
-
     var tempPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingImageUriString by rememberSaveable { mutableStateOf<String?>(null) }
-    var loadedBitmapToCrop by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
-    // --- GESTION DES CHIPS DYNAMIQUES DU DIALOGUE ---
-    var showAddPropertyDialog by remember { mutableStateOf(false) }
-    var newPropertyName by remember { mutableStateOf("") }
-    var selectedDataType by remember { mutableStateOf("TEXT") } // TEXT, NUMBER, VALUE, DATE, FILE
-    val dataTypesList = listOf("Texte" to "TEXT", "Chiffre" to "NUMBER", "Valeur" to "VALUE", "Calendrier" to "DATE", "Fichier" to "FILE")
+    var selectedImageFormat by rememberSaveable { mutableStateOf(DisplayFormat.PORTRAIT) }
+    var attachments by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
-    // --- SÉLECTEURS POUR LES PROPRIÉTÉS DYNAMIQUES DE TYPE DATE & FILE ---
-    var targetPropertyForDatePicker by remember { mutableStateOf<String?>(null) }
-    var showCustomPropertyDatePicker by remember { mutableStateOf(false) }
-    val customPropertyDatePickerState = rememberDatePickerState()
-    var targetPropertyForFilePicker by remember { mutableStateOf<String?>(null) }
-
-    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) { pendingImageUriString = uri.toString() } }
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success -> if (success && tempPhotoUriString != null) { pendingImageUriString = tempPhotoUriString } }
-
-    // Lanceur universel pour n'importe quel fichier requis par le template
-    val customFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null && targetPropertyForFilePicker != null) {
-            viewModel.updateProperty(targetPropertyForFilePicker!!, uri.toString())
-            targetPropertyForFilePicker = null
-        }
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) { viewModel.updateForm { it.copy(imageUrl = uri.toString()) } }
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success && tempPhotoUriString != null) { viewModel.updateForm { it.copy(imageUrl = tempPhotoUriString!!) } }
+    }
+    val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) { attachments = attachments + uri }
     }
 
-    LaunchedEffect(pendingImageUriString) {
-        pendingImageUriString?.let { uriStr ->
-            isProcessingImage = true
-            val bitmap = viewModel.loadBitmap(Uri.parse(uriStr))
-            if (bitmap != null) { loadedBitmapToCrop = bitmap }
-            else { Toast.makeText(context, "Erreur de chargement", Toast.LENGTH_SHORT).show() }
-            isProcessingImage = false
-            pendingImageUriString = null
-        }
-    }
+    val backgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    val cardColor = MaterialTheme.colorScheme.surface
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundColor)
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // --- IMAGE HEADER ---
-        Box(modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)).clickable(enabled = !isProcessingImage) { showSourceDialog = true }, contentAlignment = Alignment.Center) {
-            if (isProcessingImage) { Column(horizontalAlignment = Alignment.CenterHorizontally) { CircularProgressIndicator(); Spacer(modifier = Modifier.height(8.dp)); Text(stringResource(R.string.text_processing_cutout), fontSize = 12.sp) } }
-            else if (state.imageUrl.isNotBlank()) AsyncImage(model = state.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-            else { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("📸", fontSize = 40.sp); Spacer(modifier = Modifier.height(4.dp)); Text(stringResource(R.string.dialog_illustration_text), color = MaterialTheme.colorScheme.outline, fontSize = 13.sp) } }
-        }
 
-        // --- ITEM TYPE ---
-        Text(stringResource(R.string.title_item_type), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ItemType.entries.forEach { type -> FilterChip(selected = state.itemType == type, onClick = { viewModel.changeItemType(type) }, label = { Text("${type.emoji} ${type.label}") }) }
-        }
-
-        // --- TITLE ---
-        OutlinedTextField(value = state.title, onValueChange = { text -> viewModel.updateForm { it.copy(title = text) } }, label = { Text(stringResource(R.string.label_title)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-
-        // --- DYNAMIC PROPERTIES ---
-        Text(stringResource(R.string.title_specific_info), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
-
-        state.properties.forEach { (propertyName, value) ->
-            val propDataType = state.propertyTypes[propertyName] ?: "TEXT"
-            val lowerName = propertyName.lowercase()
-            val isMultiLine = propDataType == "TEXT" && (lowerName.contains("description") || lowerName.contains("synopsis") || lowerName.contains("résumé"))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+        // ====================================================================
+        // 1. BLOC IMAGE ET BULLE DE FORMAT
+        // ====================================================================
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(selectedImageFormat.ratio)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(cardColor)
+                    .clickable { showSourceDialog = true },
+                contentAlignment = Alignment.Center
             ) {
-                Box(modifier = Modifier.weight(1f)) {
-                    OutlinedTextField(
-                        value = if (propDataType == "FILE" && value.startsWith("content")) "Fichier sélectionné 📎" else value,
-                        onValueChange = { newValue -> viewModel.updateProperty(propertyName, newValue) },
-                        label = { Text(propertyName + if (propDataType == "VALUE") " (€)" else "") },
-                        modifier = Modifier.fillMaxWidth().then(if (isMultiLine) Modifier.height(120.dp) else Modifier),
-                        maxLines = if (isMultiLine) 5 else 1,
-                        singleLine = !isMultiLine,
-                        readOnly = (propDataType == "DATE" || propDataType == "FILE"),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = if (propDataType == "NUMBER" || propDataType == "VALUE") KeyboardType.Number else KeyboardType.Text
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        trailingIcon = {
-                            IconButton(onClick = { viewModel.deleteCustomPropertyTemplate(finalSelectedId ?: 0L, propertyName) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
-                            }
-                        }
-                    )
-
-                    // Overlays d'interceptions pour les types non textuels
-                    if (propDataType == "DATE") {
-                        Box(modifier = Modifier.matchParentSize().padding(end = 48.dp).clickable { targetPropertyForDatePicker = propertyName; showCustomPropertyDatePicker = true })
-                    } else if (propDataType == "FILE") {
-                        Box(modifier = Modifier.matchParentSize().padding(end = 48.dp).clickable { targetPropertyForFilePicker = propertyName; customFileLauncher.launch("*/*") })
-                    }
-                }
-            }
-        }
-
-        if (finalSelectedId != null) {
-            TextButton(onClick = { showAddPropertyDialog = true }, modifier = Modifier.padding(top = 4.dp)) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Ajouter un champ personnalisé")
-            }
-        }
-
-        // --- LOCATION (PATH) ---
-        if (collectionsList.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = stringResource(R.string.label_location), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
-                var parentIdForNextLevel: Long? = null
-                for (i in 0..state.selectedPath.size) {
-                    val options = collectionsList.filter { it.parentId == parentIdForNextLevel }
-                    if (options.isNotEmpty()) {
-                        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            options.forEach { opt ->
-                                val isSelected = (i < state.selectedPath.size && state.selectedPath[i] == opt.id)
-                                FilterChip(selected = isSelected, onClick = { viewModel.updateSelectedPath(state.selectedPath.take(i) + opt.id) }, label = { Text(opt.name) })
-                            }
-                        }
-                    }
-                    if (i < state.selectedPath.size) parentIdForNextLevel = state.selectedPath[i] else break
-                }
-            }
-        }
-
-        // --- TAGS ---
-        if (state.selectedPath.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(text = stringResource(R.string.label_tags), fontWeight = FontWeight.Bold, fontSize = 16.sp); IconButton(onClick = { showAddTagDialog = true }) { Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary) } }
-                if (uniqueTags.isEmpty()) {
-                    Text(stringResource(R.string.no_tags_available), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                if (isProcessingImage) {
+                    CircularProgressIndicator()
+                } else if (state.imageUrl.isNotBlank()) {
+                    AsyncImage(model = state.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 } else {
-                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        uniqueTags.forEach { tag ->
-                            FilterChip(
-                                selected = state.selectedTags.any { it.name == tag.name },
-                                onClick = {
-                                    val currentTags = state.selectedTags
-                                    val newTags = if (currentTags.any { it.name == tag.name }) currentTags.filter { it.name != tag.name }.toSet() else currentTags + tag
-                                    viewModel.updateForm { it.copy(selectedTags = newTags) }
-                                },
-                                label = { Text(tag.name) }
-                            )
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                }
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(12.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+                        .clickable { selectedImageFormat = if (selectedImageFormat == DisplayFormat.PORTRAIT) DisplayFormat.LANDSCAPE else DisplayFormat.PORTRAIT }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.Edit, contentDescription = "Format", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurface)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = selectedImageFormat.label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            }
+        }
+
+        // ====================================================================
+        // 2. TITRE PRINCIPAL
+        // ====================================================================
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor)
+        ) {
+            TextField(
+                value = state.title,
+                onValueChange = { newTitle -> viewModel.updateForm { it.copy(title = newTitle) } },
+                placeholder = { Text("Titre de l'objet", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                textStyle = LocalTextStyle.current.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                singleLine = true
+            )
+        }
+
+        // ====================================================================
+        // 3. CARTE D'IDENTITÉ (DOSSIER & TYPE)
+        // ====================================================================
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { onCollectionClick() }.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (finalSelectedCollection != null) {
+                        if (finalSelectedCover.startsWith("file") || finalSelectedCover.startsWith("/") || finalSelectedCover.startsWith("content") || finalSelectedCover.startsWith("http")) {
+                            AsyncImage(model = finalSelectedCover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(24.dp).clip(CircleShape))
+                        } else {
+                            val emoji = if (finalSelectedCover.isNotBlank()) finalSelectedCover else getEmojiForCollection(finalSelectedName)
+                            Text(text = emoji, fontSize = 18.sp)
+                        }
+                    } else {
+                        Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Dossier", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                    Text(finalSelectedName, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.rotate(-90f))
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = backgroundColor)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { onTypeClick() }.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = state.itemType.emoji, fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Type d'objet", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                    Text(state.itemType.label, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.rotate(-90f))
+                }
+            }
+        }
+
+        // ====================================================================
+        // 4. SECTIONS PROTON PASS
+        // ====================================================================
+        if (state.properties.isNotEmpty()) {
+            ProtonPassSection(
+                title = "Informations détaillées",
+                onAddFieldClick = { /* Action ajout de champ */ }
+            ) {
+                state.properties.forEach { (propertyName, value) ->
+                    ProtonPassFieldRow(
+                        label = propertyName,
+                        value = value,
+                        onValueChange = { newValue -> viewModel.updateProperty(propertyName, newValue) },
+                        onDeleteClick = { viewModel.removeProperty(propertyName) }
+                    )
+                    HorizontalDivider(color = backgroundColor, thickness = 1.dp, modifier = Modifier.padding(start = 16.dp))
+                }
+            }
+        }
+
+        ProtonPassSection(
+            title = "Informations d'acquisition",
+            onAddFieldClick = { /* Action ajout de champ */ }
+        ) {
+            ProtonPassFieldRow(
+                label = "Prix d'achat",
+                value = state.price,
+                onValueChange = { newPrice -> viewModel.updateForm { form -> form.copy(price = newPrice) } },
+                keyboardType = KeyboardType.Number
+            )
+            HorizontalDivider(color = backgroundColor, thickness = 1.dp, modifier = Modifier.padding(start = 16.dp))
+            ProtonPassFieldRow(
+                label = "Date d'achat",
+                value = state.purchaseDate,
+                onValueChange = {},
+                readOnly = true
+            )
+        }
+
+        TextButton(
+            onClick = { /* Création de section dynamique */ },
+            modifier = Modifier.padding(horizontal = 16.dp).align(Alignment.Start)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Créer une section", fontWeight = FontWeight.Medium)
+        }
+
+        // ====================================================================
+        // 5. PIÈCES JOINTES
+        // ====================================================================
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor)
+        ) {
+            Column {
+                Text(text = "Pièces jointes", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
+
+                attachments.forEach { uri ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(text = "Document joint", modifier = Modifier.weight(1f), maxLines = 1, color = MaterialTheme.colorScheme.onSurface)
+                        IconButton(onClick = { attachments = attachments - uri }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error)
                         }
                     }
+                    HorizontalDivider(color = backgroundColor, thickness = 1.dp, modifier = Modifier.padding(start = 48.dp))
+                }
+
+                TextButton(
+                    onClick = { fileLauncher.launch("*/*") },
+                    modifier = Modifier.fillMaxWidth().padding(8.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ajouter un fichier (Facture, Ticket...)")
                 }
             }
         }
 
-        // --- STATUS ---
-        if (finalSelectedId != null) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = stringResource(R.string.label_status), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
-                val statusOptions = getDynamicStatusOptions(context, finalSelectedName)
-                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { statusOptions.forEach { opt -> FilterChip(selected = state.status == opt, onClick = { viewModel.updateForm { it.copy(status = opt) } }, label = { Text(opt) }) } }
-            }
-        }
-
-        // --- LOAN MANAGEMENT ---
-        Text(text = stringResource(R.string.title_loan_management), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(stringResource(R.string.loan_switch_text), fontWeight = FontWeight.Medium); Switch(checked = state.isLoaned, onCheckedChange = { value -> viewModel.updateForm { it.copy(isLoaned = value) } }) }
-                if (state.isLoaned) {
-                    OutlinedTextField(value = state.loanTo, onValueChange = { text -> viewModel.updateForm { it.copy(loanTo = text) } }, label = { Text(stringResource(R.string.label_loan_to)) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
-                    Box(modifier = Modifier.fillMaxWidth()) { OutlinedTextField(value = state.loanDate, onValueChange = {}, readOnly = true, label = { Text(stringResource(R.string.label_loan_date)) }, modifier = Modifier.fillMaxWidth()); Box(modifier = Modifier.matchParentSize().clickable { showLoanDatePicker = true }) }
-                }
-            }
-        }
-
-        // --- ACQUISITION INFO ---
-        Text(text = stringResource(R.string.title_acquisition_info), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 16.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            OutlinedTextField(value = state.price, onValueChange = { input -> if (input.all { it.isDigit() || it == '.' || it == ',' } && input.count { it == '.' || it == ',' } <= 1) viewModel.updateForm { it.copy(price = input) } }, label = { Text(stringResource(R.string.label_price)) }, modifier = Modifier.weight(1.5f), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
-            Box(modifier = Modifier.weight(1.5f)) { OutlinedTextField(value = state.purchaseDate, onValueChange = {}, readOnly = true, label = { Text(stringResource(R.string.label_purchase_date)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)); Box(modifier = Modifier.matchParentSize().clickable { showPurchaseDatePicker = true }) }
-        }
-
-        Spacer(modifier = Modifier.height(30.dp))
-        Button(onClick = { onSaveClick(state) }, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text(buttonText, fontSize = 16.sp) }
+        Spacer(modifier = Modifier.height(100.dp))
     }
 
-    // --- DIALOGUES DE DATE ET SÉLECTION ---
-
-    if (showCustomPropertyDatePicker && targetPropertyForDatePicker != null) {
-        DatePickerDialog(
-            onDismissRequest = { showCustomPropertyDatePicker = false; targetPropertyForDatePicker = null },
-            confirmButton = {
-                TextButton(onClick = {
-                    customPropertyDatePickerState.selectedDateMillis?.let { millis ->
-                        val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                        viewModel.updateProperty(targetPropertyForDatePicker!!, dateStr)
-                    }
-                    showCustomPropertyDatePicker = false
-                    targetPropertyForDatePicker = null
-                }) { Text("OK") }
-            },
-            dismissButton = { TextButton(onClick = { showCustomPropertyDatePicker = false; targetPropertyForDatePicker = null }) { Text(stringResource(R.string.cancel)) } }
-        ) { DatePicker(state = customPropertyDatePickerState) }
-    }
-
-    if (showAddPropertyDialog && finalSelectedId != null) {
+    // --- DIALOGUES ---
+    if (showSourceDialog) {
         AlertDialog(
-            onDismissRequest = { showAddPropertyDialog = false },
-            title = { Text("Nouveau champ personnalisé", fontWeight = FontWeight.Bold) },
+            onDismissRequest = { showSourceDialog = false },
+            title = { Text("Source de l'illustration", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(value = newPropertyName, onValueChange = { newPropertyName = it }, label = { Text("Nom du champ") }, singleLine = true, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth())
-                    Text("Type de données :", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        dataTypesList.forEach { (label, typeKey) ->
-                            FilterChip(selected = selectedDataType == typeKey, onClick = { selectedDataType = typeKey }, label = { Text(label) })
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; showUrlDialog = true }.padding(8.dp)) {
+                        Icon(imageVector = GollectionsIcons.Planet, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text("URL", fontSize = 12.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
+                        showSourceDialog = false
+                        scope.launch(Dispatchers.IO) {
+                            val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir)
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
+                            withContext(Dispatchers.Main) {
+                                tempPhotoUriString = uri.toString()
+                                cameraLauncher.launch(uri)
+                            }
                         }
+                    }.padding(8.dp)) {
+                        Icon(imageVector = GollectionsIcons.Camera, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text("Appareil", fontSize = 12.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)) {
+                        Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text("Galerie", fontSize = 12.sp)
                     }
                 }
             },
-            confirmButton = {
-                Button(onClick = {
-                    if (newPropertyName.isNotBlank()) {
-                        viewModel.addCustomPropertyTemplate(finalSelectedId, newPropertyName.trim(), selectedDataType)
-                        showAddPropertyDialog = false
-                        newPropertyName = ""
-                        selectedDataType = "TEXT"
-                    }
-                }) { Text("Ajouter") }
-            },
-            dismissButton = { TextButton(onClick = { showAddPropertyDialog = false }) { Text(stringResource(R.string.cancel)) } }
+            confirmButton = { TextButton(onClick = { showSourceDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
-    if (showPurchaseDatePicker) {
-        DatePickerDialog(onDismissRequest = { showPurchaseDatePicker = false }, confirmButton = { TextButton(onClick = { purchaseDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(purchaseDate = dateStr) } }; showPurchaseDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showPurchaseDatePicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = purchaseDatePickerState) }
+    if (showUrlDialog) {
+        AlertDialog(
+            onDismissRequest = { showUrlDialog = false },
+            title = { Text("Lien de l'image (URL)", fontWeight = FontWeight.Bold) },
+            text = { OutlinedTextField(value = urlInput, onValueChange = { urlInput = it }, label = { Text("Coller l'URL") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = { Button(onClick = { if (urlInput.isNotBlank()) viewModel.updateForm { it.copy(imageUrl = urlInput.trim()) }; showUrlDialog = false }) { Text("OK") } },
+            dismissButton = { TextButton(onClick = { showUrlDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
     }
-    if (showLoanDatePicker) {
-        DatePickerDialog(onDismissRequest = { showLoanDatePicker = false }, confirmButton = { TextButton(onClick = { loanDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(loanDate = dateStr) } }; showLoanDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showLoanDatePicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = loanDatePickerState) }
+}
+
+@Composable
+fun ProtonPassSection(title: String, onAddFieldClick: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column {
+            Text(text = title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
+            content()
+            TextButton(onClick = onAddFieldClick, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Ajouter un champ")
+            }
+        }
     }
-    if (showSourceDialog) { AlertDialog(onDismissRequest = { showSourceDialog = false }, title = { Text("Source de l'illustration", fontSize = 18.sp, fontWeight = FontWeight.Bold) }, text = { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) { Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; showUrlDialog = true }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.Planet, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Spacer(modifier = Modifier.height(4.dp)); Text("URL", fontSize = 12.sp, fontWeight = FontWeight.Medium) }; Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; scope.launch(Dispatchers.IO) { val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir); val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile); withContext(Dispatchers.Main) { tempPhotoUriString = uri.toString(); cameraLauncher.launch(uri) } } }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.Camera, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Spacer(modifier = Modifier.height(4.dp)); Text("Appareil", fontSize = 12.sp, fontWeight = FontWeight.Medium) }; Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Spacer(modifier = Modifier.height(4.dp)); Text("Galerie", fontSize = 12.sp, fontWeight = FontWeight.Medium) } } }, confirmButton = { TextButton(onClick = { showSourceDialog = false }) { Text(stringResource(R.string.cancel)) } }) }
-    if (showUrlDialog) { AlertDialog(onDismissRequest = { showUrlDialog = false }, title = { Text("Lien de l'image (URL)", fontWeight = FontWeight.Bold) }, text = { OutlinedTextField(value = urlInput, onValueChange = { urlInput = it }, label = { Text("Coller l'URL de l'image ici") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) }, confirmButton = { Button(onClick = { if (urlInput.isNotBlank()) viewModel.updateForm { it.copy(imageUrl = urlInput.trim()) }; showUrlDialog = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showUrlDialog = false }) { Text(stringResource(R.string.cancel)) } }) }
-    if (loadedBitmapToCrop != null) { CropImageDialog(bitmap = loadedBitmapToCrop!!, overlayShape = CropOverlayShape.ROUNDED_SQUARE, onDismiss = { loadedBitmapToCrop = null }, onConfirm = { croppedBitmap, smartCutout -> isProcessingImage = true; loadedBitmapToCrop = null; viewModel.processAndSaveBitmap(croppedBitmap, smartCutout) { finalUrl -> isProcessingImage = false; if (finalUrl != null) { viewModel.updateForm { it.copy(imageUrl = finalUrl) } } else { Toast.makeText(context, "Erreur de traitement", Toast.LENGTH_SHORT).show() } } }) }
-    if (showAddTagDialog && finalSelectedId != null) { AddTagDialog(onDismiss = { showAddTagDialog = false }, onConfirm = { tagName -> viewModel.insertTag(tagName, finalSelectedId); showAddTagDialog = false }) }
+}
+
+@Composable
+fun ProtonPassFieldRow(label: String, value: String, onValueChange: (String) -> Unit, readOnly: Boolean = false, keyboardType: KeyboardType = KeyboardType.Text, onDeleteClick: (() -> Unit)? = null) {
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(text = label, modifier = Modifier.weight(0.35f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+        TextField(value = value, onValueChange = onValueChange, readOnly = readOnly, placeholder = { Text("Vide", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), fontSize = 14.sp) }, modifier = Modifier.weight(0.65f), keyboardOptions = KeyboardOptions(keyboardType = keyboardType), colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface), textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium), trailingIcon = onDeleteClick?.let { { IconButton(onClick = it, modifier = Modifier.size(20.dp)) { Icon(Icons.Default.Clear, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f), modifier = Modifier.size(16.dp)) } } })
+    }
 }
