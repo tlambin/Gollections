@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,7 +40,6 @@ import com.pokyx.gollections.ui.viewmodels.ItemFormState
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
 import com.pokyx.gollections.utils.AddTagDialog
 import com.pokyx.gollections.utils.getDynamicStatusOptions
-import com.pokyx.gollections.utils.getLocalizedPropertyLabel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,10 +64,7 @@ fun ItemFormBody(
     val finalSelectedId = state.selectedPath.lastOrNull()
     val finalSelectedName = collectionsList.find { it.id == finalSelectedId }?.name ?: ""
 
-    val dbTags by remember(state.selectedPath) {
-        viewModel.getTagsForCollections(state.selectedPath)
-    }.collectAsStateWithLifecycle(initialValue = emptyList())
-
+    val dbTags by remember(state.selectedPath) { viewModel.getTagsForCollections(state.selectedPath) }.collectAsStateWithLifecycle(initialValue = emptyList())
     val uniqueTags = remember(dbTags) { dbTags.distinctBy { it.name } }
 
     var showAddTagDialog by remember { mutableStateOf(false) }
@@ -81,30 +78,41 @@ fun ItemFormBody(
     var urlInput by remember { mutableStateOf("") }
     var isProcessingImage by remember { mutableStateOf(false) }
 
-    // --- NOUVEAU SYSTÈME DE RECADRAGE ---
     var tempPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingImageUriString by rememberSaveable { mutableStateOf<String?>(null) }
     var loadedBitmapToCrop by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
-    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) { pendingImageUriString = uri.toString() }
-    }
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        if (success && tempPhotoUriString != null) { pendingImageUriString = tempPhotoUriString }
+    // --- GESTION DES CHIPS DYNAMIQUES DU DIALOGUE ---
+    var showAddPropertyDialog by remember { mutableStateOf(false) }
+    var newPropertyName by remember { mutableStateOf("") }
+    var selectedDataType by remember { mutableStateOf("TEXT") } // TEXT, NUMBER, VALUE, DATE, FILE
+    val dataTypesList = listOf("Texte" to "TEXT", "Chiffre" to "NUMBER", "Valeur" to "VALUE", "Calendrier" to "DATE", "Fichier" to "FILE")
+
+    // --- SÉLECTEURS POUR LES PROPRIÉTÉS DYNAMIQUES DE TYPE DATE & FILE ---
+    var targetPropertyForDatePicker by remember { mutableStateOf<String?>(null) }
+    var showCustomPropertyDatePicker by remember { mutableStateOf(false) }
+    val customPropertyDatePickerState = rememberDatePickerState()
+    var targetPropertyForFilePicker by remember { mutableStateOf<String?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) { pendingImageUriString = uri.toString() } }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success -> if (success && tempPhotoUriString != null) { pendingImageUriString = tempPhotoUriString } }
+
+    // Lanceur universel pour n'importe quel fichier requis par le template
+    val customFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null && targetPropertyForFilePicker != null) {
+            viewModel.updateProperty(targetPropertyForFilePicker!!, uri.toString())
+            targetPropertyForFilePicker = null
+        }
     }
 
-    // Intercepte l'URI choisie et charge le Bitmap pour le recadrage
     LaunchedEffect(pendingImageUriString) {
         pendingImageUriString?.let { uriStr ->
             isProcessingImage = true
             val bitmap = viewModel.loadBitmap(Uri.parse(uriStr))
-            if (bitmap != null) {
-                loadedBitmapToCrop = bitmap
-            } else {
-                Toast.makeText(context, "Erreur de chargement de l'image", Toast.LENGTH_SHORT).show()
-            }
+            if (bitmap != null) { loadedBitmapToCrop = bitmap }
+            else { Toast.makeText(context, "Erreur de chargement", Toast.LENGTH_SHORT).show() }
             isProcessingImage = false
-            pendingImageUriString = null // Reset l'URI pour éviter les boucles
+            pendingImageUriString = null
         }
     }
 
@@ -122,7 +130,6 @@ fun ItemFormBody(
         // --- ITEM TYPE ---
         Text(stringResource(R.string.title_item_type), fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // OPTIMISATION : .entries au lieu de .values()
             ItemType.entries.forEach { type -> FilterChip(selected = state.itemType == type, onClick = { viewModel.changeItemType(type) }, label = { Text("${type.emoji} ${type.label}") }) }
         }
 
@@ -130,16 +137,52 @@ fun ItemFormBody(
         OutlinedTextField(value = state.title, onValueChange = { text -> viewModel.updateForm { it.copy(title = text) } }, label = { Text(stringResource(R.string.label_title)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
         // --- DYNAMIC PROPERTIES ---
-        if (state.properties.isNotEmpty()) {
-            Text(stringResource(R.string.title_specific_info), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
-            state.properties.forEach { (keyEnum, value) ->
-                val isMultiLine = keyEnum.isMultiLine
-                OutlinedTextField(
-                    value = value, onValueChange = { newValue -> viewModel.updateProperty(keyEnum, newValue) },
-                    label = { Text(getLocalizedPropertyLabel(keyEnum.value)) },
-                    modifier = Modifier.fillMaxWidth().then(if (isMultiLine) Modifier.height(120.dp) else Modifier),
-                    maxLines = if (isMultiLine) 5 else 1, singleLine = !isMultiLine, shape = RoundedCornerShape(12.dp)
-                )
+        Text(stringResource(R.string.title_specific_info), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
+
+        state.properties.forEach { (propertyName, value) ->
+            val propDataType = state.propertyTypes[propertyName] ?: "TEXT"
+            val lowerName = propertyName.lowercase()
+            val isMultiLine = propDataType == "TEXT" && (lowerName.contains("description") || lowerName.contains("synopsis") || lowerName.contains("résumé"))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = if (propDataType == "FILE" && value.startsWith("content")) "Fichier sélectionné 📎" else value,
+                        onValueChange = { newValue -> viewModel.updateProperty(propertyName, newValue) },
+                        label = { Text(propertyName + if (propDataType == "VALUE") " (€)" else "") },
+                        modifier = Modifier.fillMaxWidth().then(if (isMultiLine) Modifier.height(120.dp) else Modifier),
+                        maxLines = if (isMultiLine) 5 else 1,
+                        singleLine = !isMultiLine,
+                        readOnly = (propDataType == "DATE" || propDataType == "FILE"),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = if (propDataType == "NUMBER" || propDataType == "VALUE") KeyboardType.Number else KeyboardType.Text
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        trailingIcon = {
+                            IconButton(onClick = { viewModel.deleteCustomPropertyTemplate(finalSelectedId ?: 0L, propertyName) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
+                            }
+                        }
+                    )
+
+                    // Overlays d'interceptions pour les types non textuels
+                    if (propDataType == "DATE") {
+                        Box(modifier = Modifier.matchParentSize().padding(end = 48.dp).clickable { targetPropertyForDatePicker = propertyName; showCustomPropertyDatePicker = true })
+                    } else if (propDataType == "FILE") {
+                        Box(modifier = Modifier.matchParentSize().padding(end = 48.dp).clickable { targetPropertyForFilePicker = propertyName; customFileLauncher.launch("*/*") })
+                    }
+                }
+            }
+        }
+
+        if (finalSelectedId != null) {
+            TextButton(onClick = { showAddPropertyDialog = true }, modifier = Modifier.padding(top = 4.dp)) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Ajouter un champ personnalisé")
             }
         }
 
@@ -154,7 +197,7 @@ fun ItemFormBody(
                         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             options.forEach { opt ->
                                 val isSelected = (i < state.selectedPath.size && state.selectedPath[i] == opt.id)
-                                FilterChip(selected = isSelected, onClick = { viewModel.updateForm { it.copy(selectedPath = state.selectedPath.take(i) + opt.id) } }, label = { Text(opt.name) })
+                                FilterChip(selected = isSelected, onClick = { viewModel.updateSelectedPath(state.selectedPath.take(i) + opt.id) }, label = { Text(opt.name) })
                             }
                         }
                     }
@@ -215,122 +258,66 @@ fun ItemFormBody(
             Box(modifier = Modifier.weight(1.5f)) { OutlinedTextField(value = state.purchaseDate, onValueChange = {}, readOnly = true, label = { Text(stringResource(R.string.label_purchase_date)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)); Box(modifier = Modifier.matchParentSize().clickable { showPurchaseDatePicker = true }) }
         }
 
-        // --- SAVE BUTTON ---
         Spacer(modifier = Modifier.height(30.dp))
-        Button(
-            onClick = { onSaveClick(state) },
-            modifier = Modifier.fillMaxWidth().height(56.dp)
-        ) { Text(buttonText, fontSize = 16.sp) }
+        Button(onClick = { onSaveClick(state) }, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text(buttonText, fontSize = 16.sp) }
     }
 
-    // --- DIALOGS ---
+    // --- DIALOGUES DE DATE ET SÉLECTION ---
+
+    if (showCustomPropertyDatePicker && targetPropertyForDatePicker != null) {
+        DatePickerDialog(
+            onDismissRequest = { showCustomPropertyDatePicker = false; targetPropertyForDatePicker = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    customPropertyDatePickerState.selectedDateMillis?.let { millis ->
+                        val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                        viewModel.updateProperty(targetPropertyForDatePicker!!, dateStr)
+                    }
+                    showCustomPropertyDatePicker = false
+                    targetPropertyForDatePicker = null
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showCustomPropertyDatePicker = false; targetPropertyForDatePicker = null }) { Text(stringResource(R.string.cancel)) } }
+        ) { DatePicker(state = customPropertyDatePickerState) }
+    }
+
+    if (showAddPropertyDialog && finalSelectedId != null) {
+        AlertDialog(
+            onDismissRequest = { showAddPropertyDialog = false },
+            title = { Text("Nouveau champ personnalisé", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = newPropertyName, onValueChange = { newPropertyName = it }, label = { Text("Nom du champ") }, singleLine = true, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth())
+                    Text("Type de données :", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        dataTypesList.forEach { (label, typeKey) ->
+                            FilterChip(selected = selectedDataType == typeKey, onClick = { selectedDataType = typeKey }, label = { Text(label) })
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (newPropertyName.isNotBlank()) {
+                        viewModel.addCustomPropertyTemplate(finalSelectedId, newPropertyName.trim(), selectedDataType)
+                        showAddPropertyDialog = false
+                        newPropertyName = ""
+                        selectedDataType = "TEXT"
+                    }
+                }) { Text("Ajouter") }
+            },
+            dismissButton = { TextButton(onClick = { showAddPropertyDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
 
     if (showPurchaseDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showPurchaseDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    purchaseDatePickerState.selectedDateMillis?.let { millis ->
-                        val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                        viewModel.updateForm { it.copy(purchaseDate = dateStr) }
-                    }
-                    showPurchaseDatePicker = false
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPurchaseDatePicker = false }) { Text(stringResource(R.string.cancel)) }
-            }
-        ) { DatePicker(state = purchaseDatePickerState) }
+        DatePickerDialog(onDismissRequest = { showPurchaseDatePicker = false }, confirmButton = { TextButton(onClick = { purchaseDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(purchaseDate = dateStr) } }; showPurchaseDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showPurchaseDatePicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = purchaseDatePickerState) }
     }
-
     if (showLoanDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showLoanDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    loanDatePickerState.selectedDateMillis?.let { millis ->
-                        val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                        viewModel.updateForm { it.copy(loanDate = dateStr) }
-                    }
-                    showLoanDatePicker = false
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLoanDatePicker = false }) { Text(stringResource(R.string.cancel)) }
-            }
-        ) { DatePicker(state = loanDatePickerState) }
+        DatePickerDialog(onDismissRequest = { showLoanDatePicker = false }, confirmButton = { TextButton(onClick = { loanDatePickerState.selectedDateMillis?.let { millis -> val dateStr = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")); viewModel.updateForm { it.copy(loanDate = dateStr) } }; showLoanDatePicker = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showLoanDatePicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = loanDatePickerState) }
     }
-
-    if (showSourceDialog) {
-        AlertDialog(
-            onDismissRequest = { showSourceDialog = false },
-            title = { Text("Source de l'illustration", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
-            text = {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; showUrlDialog = true }.padding(8.dp)) {
-                        Icon(imageVector = GollectionsIcons.Planet, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("URL", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
-                        showSourceDialog = false
-                        scope.launch(Dispatchers.IO) {
-                            val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir)
-                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
-                            withContext(Dispatchers.Main) {
-                                tempPhotoUriString = uri.toString()
-                                cameraLauncher.launch(uri)
-                            }
-                        }
-                    }.padding(8.dp)) {
-                        Icon(imageVector = GollectionsIcons.Camera, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Appareil", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)) {
-                        Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Galerie", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { showSourceDialog = false }) { Text(stringResource(R.string.cancel)) } }
-        )
-    }
-
-    if (showUrlDialog) {
-        AlertDialog(
-            onDismissRequest = { showUrlDialog = false },
-            title = { Text("Lien de l'image (URL)", fontWeight = FontWeight.Bold) },
-            text = { OutlinedTextField(value = urlInput, onValueChange = { urlInput = it }, label = { Text("Coller l'URL de l'image ici") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) },
-            confirmButton = { Button(onClick = { if (urlInput.isNotBlank()) viewModel.updateForm { it.copy(imageUrl = urlInput.trim()) }; showUrlDialog = false }) { Text("OK") } },
-            dismissButton = { TextButton(onClick = { showUrlDialog = false }) { Text(stringResource(R.string.cancel)) } }
-        )
-    }
-
-    // Affiche notre nouvel écran de recadrage magique si le Bitmap est prêt
-    if (loadedBitmapToCrop != null) {
-        CropImageDialog(
-            bitmap = loadedBitmapToCrop!!,
-            overlayShape = CropOverlayShape.ROUNDED_SQUARE,
-            onDismiss = { loadedBitmapToCrop = null },
-            onConfirm = { croppedBitmap, smartCutout ->
-                isProcessingImage = true
-                loadedBitmapToCrop = null // Ferme le dialogue
-
-                viewModel.processAndSaveBitmap(croppedBitmap, smartCutout) { finalUrl ->
-                    isProcessingImage = false
-                    if (finalUrl != null) {
-                        viewModel.updateForm { it.copy(imageUrl = finalUrl) }
-                    } else {
-                        Toast.makeText(context, "Erreur de traitement de l'image", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        )
-    }
-
-    if (showAddTagDialog && finalSelectedId != null) {
-        AddTagDialog(onDismiss = { showAddTagDialog = false }, onConfirm = { tagName -> viewModel.insertTag(tagName, finalSelectedId); showAddTagDialog = false })
-    }
+    if (showSourceDialog) { AlertDialog(onDismissRequest = { showSourceDialog = false }, title = { Text("Source de l'illustration", fontSize = 18.sp, fontWeight = FontWeight.Bold) }, text = { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) { Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; showUrlDialog = true }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.Planet, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Spacer(modifier = Modifier.height(4.dp)); Text("URL", fontSize = 12.sp, fontWeight = FontWeight.Medium) }; Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; scope.launch(Dispatchers.IO) { val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir); val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile); withContext(Dispatchers.Main) { tempPhotoUriString = uri.toString(); cameraLauncher.launch(uri) } } }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.Camera, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Spacer(modifier = Modifier.height(4.dp)); Text("Appareil", fontSize = 12.sp, fontWeight = FontWeight.Medium) }; Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Spacer(modifier = Modifier.height(4.dp)); Text("Galerie", fontSize = 12.sp, fontWeight = FontWeight.Medium) } } }, confirmButton = { TextButton(onClick = { showSourceDialog = false }) { Text(stringResource(R.string.cancel)) } }) }
+    if (showUrlDialog) { AlertDialog(onDismissRequest = { showUrlDialog = false }, title = { Text("Lien de l'image (URL)", fontWeight = FontWeight.Bold) }, text = { OutlinedTextField(value = urlInput, onValueChange = { urlInput = it }, label = { Text("Coller l'URL de l'image ici") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) }, confirmButton = { Button(onClick = { if (urlInput.isNotBlank()) viewModel.updateForm { it.copy(imageUrl = urlInput.trim()) }; showUrlDialog = false }) { Text("OK") } }, dismissButton = { TextButton(onClick = { showUrlDialog = false }) { Text(stringResource(R.string.cancel)) } }) }
+    if (loadedBitmapToCrop != null) { CropImageDialog(bitmap = loadedBitmapToCrop!!, overlayShape = CropOverlayShape.ROUNDED_SQUARE, onDismiss = { loadedBitmapToCrop = null }, onConfirm = { croppedBitmap, smartCutout -> isProcessingImage = true; loadedBitmapToCrop = null; viewModel.processAndSaveBitmap(croppedBitmap, smartCutout) { finalUrl -> isProcessingImage = false; if (finalUrl != null) { viewModel.updateForm { it.copy(imageUrl = finalUrl) } } else { Toast.makeText(context, "Erreur de traitement", Toast.LENGTH_SHORT).show() } } }) }
+    if (showAddTagDialog && finalSelectedId != null) { AddTagDialog(onDismiss = { showAddTagDialog = false }, onConfirm = { tagName -> viewModel.insertTag(tagName, finalSelectedId); showAddTagDialog = false }) }
 }

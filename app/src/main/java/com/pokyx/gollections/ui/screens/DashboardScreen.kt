@@ -63,7 +63,6 @@ fun DashboardScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Optimisation : On mémorise le scanner pour éviter de le recréer à chaque clic
     val barcodeScanner = remember(context) { BarcodeScanner(context) }
 
     val rootCollections by viewModel.rootCollections.collectAsStateWithLifecycle()
@@ -99,7 +98,11 @@ fun DashboardScreen(
                         onAddItemClick(event.title, event.imageUrl)
                     }
                     is ScanEvent.Error -> {
-                        val msg = if (event.message == "error_scan_limit") msgLimit else msgNotFound
+                        val msg = when (event) {
+                            is ScanEvent.Error.LimitReached -> msgLimit
+                            is ScanEvent.Error.NotFound -> msgNotFound
+                            is ScanEvent.Error.Unknown -> event.message
+                        }
                         scope.launch { snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Long) }
                     }
                 }
@@ -129,7 +132,7 @@ fun DashboardScreen(
                 onToggle = { isFabExpanded = !isFabExpanded },
                 onScanClick = {
                     isFabExpanded = false
-                    scope.launch { // On lance une coroutine grâce au scope de l'UI
+                    scope.launch {
                         try {
                             val barcode = barcodeScanner.startScan()
                             viewModel.fetchItemFromBarcode(barcode)
@@ -161,7 +164,10 @@ fun DashboardScreen(
                     item { Text(text = "${stringResource(R.string.title_items)} (${searchResultsWithTags.size})", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
                     if (searchResultsWithTags.isEmpty()) { item { Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_object_found), color = Color.Gray) } } }
                     else {
-                        items(searchResultsWithTags) { itemWithTags ->
+                        items(
+                            items = searchResultsWithTags,
+                            key = { itemWithTags -> itemWithTags.item.id } // OPTIMISATION ICI
+                        ) { itemWithTags ->
                             val item = itemWithTags.item
                             val parentCol = allCollections.find { it.id == item.collectionId }
                             val colName = parentCol?.name ?: ""

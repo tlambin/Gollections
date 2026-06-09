@@ -30,7 +30,7 @@ fun EditItemScreen(
     onSaveClick: (CollectionItem, List<Tag>, Map<String, String>) -> Unit,
     viewModel: ItemViewModel = hiltViewModel()
 ) {
-    val context = LocalContext.current // NOUVEAU : Contexte pour les Toasts
+    val context = LocalContext.current
     val itemWithTags by viewModel.getItemByIdWithTags(itemId).collectAsStateWithLifecycle(initialValue = null)
     val collectionsList by viewModel.collections.collectAsStateWithLifecycle()
     val state by viewModel.formState.collectAsStateWithLifecycle()
@@ -61,7 +61,6 @@ fun EditItemScreen(
                     onSaveClick = { finalState ->
                         val finalSelectedId = finalState.selectedPath.lastOrNull()
 
-                        // OPTIMISATION UX : Validation explicite
                         if (finalState.title.isBlank()) {
                             Toast.makeText(context, "Veuillez entrer un titre", Toast.LENGTH_SHORT).show()
                             return@ItemFormBody
@@ -71,7 +70,6 @@ fun EditItemScreen(
                             return@ItemFormBody
                         }
 
-                        // Sauvegarde de l'objet mis à jour
                         val parsedPrice = finalState.price.trim().replace(",", ".").toDoubleOrNull() ?: 0.0
                         val updatedItem = itemWithTags!!.item.copy(
                             title = finalState.title.trim(),
@@ -86,8 +84,8 @@ fun EditItemScreen(
                             itemType = finalState.itemType
                         )
 
-                        val stringProperties = finalState.properties.mapKeys { it.key.value }
-                        onSaveClick(updatedItem, finalState.selectedTags.toList(), stringProperties)
+                        // MISE À JOUR : Les propriétés sont déjà au format String, on les passe directement !
+                        onSaveClick(updatedItem, finalState.selectedTags.toList(), finalState.properties)
                     }
                 )
             } else {

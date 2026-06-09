@@ -9,11 +9,12 @@ import com.pokyx.gollections.data.Collection
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ItemRepository
 import com.pokyx.gollections.data.repository.TagRepository
-import com.pokyx.gollections.data.repository.ImageProcessorRepository // NOUVEL IMPORT
+import com.pokyx.gollections.data.repository.ImageProcessorRepository
 import com.pokyx.gollections.data.tag.CollectionItemWithTags
 import com.pokyx.gollections.data.tag.Tag
 import com.pokyx.gollections.domain.usecase.DeleteCollectionUseCase
 import com.pokyx.gollections.domain.usecase.GetCollectionDescendantsUseCase
+import com.pokyx.gollections.domain.usecase.InsertCollectionUseCase
 import com.pokyx.gollections.domain.usecase.ProcessImageUseCase
 import com.pokyx.gollections.domain.usecase.ScanBarcodeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,9 +42,10 @@ class CollectionDetailViewModel @Inject constructor(
     private val tagRepository: TagRepository,
     private val getCollectionDescendantsUseCase: GetCollectionDescendantsUseCase,
     private val deleteCollectionUseCase: DeleteCollectionUseCase,
+    private val insertCollectionUseCase: InsertCollectionUseCase, // NOUVEL INJECT ICI
     private val processImageUseCase: ProcessImageUseCase,
     private val scanBarcodeUseCase: ScanBarcodeUseCase,
-    private val imageProcessor: ImageProcessorRepository // AJOUT ICI
+    private val imageProcessor: ImageProcessorRepository
 ) : ViewModel() {
 
     val allCollections = collectionRepository.getAllCollections().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -62,8 +64,11 @@ class CollectionDetailViewModel @Inject constructor(
             .flowOn(Dispatchers.IO)
     }
 
+    // MISE À JOUR ICI : On délègue au UseCase
     fun insertCollection(name: String, cover: String = "", parentId: Long? = null) {
-        viewModelScope.launch { collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId)) }
+        viewModelScope.launch {
+            insertCollectionUseCase(name = name, cover = cover, parentId = parentId)
+        }
     }
 
     fun deleteCollection(collectionId: Long) {
@@ -103,7 +108,6 @@ class CollectionDetailViewModel @Inject constructor(
         viewModelScope.launch { tagRepository.renameTag(collectionId, oldName, newName) }
     }
 
-    // CORRECTION ICI : Chargement du Bitmap en amont
     suspend fun loadBitmap(uri: Uri): android.graphics.Bitmap? {
         return imageProcessor.loadScaledBitmap(uri)
     }
@@ -125,7 +129,12 @@ class CollectionDetailViewModel @Inject constructor(
             if (result.title != null) {
                 _scanEvent.send(ScanEvent.Success(result.title, result.imageUrl))
             } else {
-                _scanEvent.send(ScanEvent.Error(result.errorMsg ?: "error_scan_not_found"))
+                val errorEvent = when (result.errorMsg) {
+                    "error_scan_limit" -> ScanEvent.Error.LimitReached
+                    "error_scan_not_found" -> ScanEvent.Error.NotFound
+                    else -> ScanEvent.Error.Unknown(result.errorMsg ?: "Erreur inconnue")
+                }
+                _scanEvent.send(errorEvent)
             }
         }
     }

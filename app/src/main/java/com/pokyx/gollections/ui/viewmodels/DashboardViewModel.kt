@@ -4,11 +4,11 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pokyx.gollections.data.Collection
-import com.pokyx.gollections.data.CollectionItemCount
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ItemRepository
-import com.pokyx.gollections.data.repository.ImageProcessorRepository // NOUVEL IMPORT
-import com.pokyx.gollections.domain.usecase.GetCollectionDescendantsUseCase
+import com.pokyx.gollections.data.repository.ImageProcessorRepository
+import com.pokyx.gollections.domain.usecase.GetCollectionItemCountsUseCase
+import com.pokyx.gollections.domain.usecase.InsertCollectionUseCase
 import com.pokyx.gollections.domain.usecase.ProcessImageUseCase
 import com.pokyx.gollections.domain.usecase.ScanBarcodeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,7 +30,11 @@ import javax.inject.Inject
 sealed class ScanEvent {
     data object Searching : ScanEvent()
     data class Success(val title: String?, val imageUrl: String?) : ScanEvent()
-    data class Error(val message: String) : ScanEvent()
+    sealed class Error : ScanEvent() {
+        data object LimitReached : Error()
+        data object NotFound : Error()
+        data class Unknown(val message: String) : Error()
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -38,10 +42,11 @@ sealed class ScanEvent {
 class DashboardViewModel @Inject constructor(
     private val collectionRepository: CollectionRepository,
     private val itemRepository: ItemRepository,
-    private val getCollectionDescendantsUseCase: GetCollectionDescendantsUseCase,
+    private val getCollectionItemCountsUseCase: GetCollectionItemCountsUseCase,
+    private val insertCollectionUseCase: InsertCollectionUseCase, // NOUVEL INJECT ICI
     private val processImageUseCase: ProcessImageUseCase,
     private val scanBarcodeUseCase: ScanBarcodeUseCase,
-    private val imageProcessor: ImageProcessorRepository // AJOUT ICI
+    private val imageProcessor: ImageProcessorRepository
 ) : ViewModel() {
 
     val collections = collectionRepository.getAllCollections()
@@ -56,18 +61,8 @@ class DashboardViewModel @Inject constructor(
     val loanedItemsCount = itemRepository.getLoanedItemsCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    private val itemCountsPerCollection = itemRepository.getItemCountsPerCollection()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList<CollectionItemCount>())
-
-    val collectionItemCounts = combine(collections, itemCountsPerCollection) { allColls, countsList ->
-        val flatCounts = countsList.associateBy({ it.collectionId }, { it.count })
-        val counts = mutableMapOf<Long, Int>()
-        for (collection in allColls) {
-            val descendantIds = getCollectionDescendantsUseCase(collection.id, allColls)
-            counts[collection.id] = descendantIds.sumOf { flatCounts[it] ?: 0 }
-        }
-        counts
-    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    val collectionItemCounts = getCollectionItemCountsUseCase()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
@@ -83,13 +78,13 @@ class DashboardViewModel @Inject constructor(
         _searchQuery.value = query
     }
 
+    // MISE À JOUR ICI : On délègue au UseCase pour bénéficier des champs automatiques
     fun insertCollection(name: String, cover: String = "", parentId: Long? = null) {
         viewModelScope.launch {
-            collectionRepository.insertCollection(Collection(name = name, cover = cover, parentId = parentId))
+            insertCollectionUseCase(name = name, cover = cover, parentId = parentId)
         }
     }
 
-    // CORRECTION ICI : Chargement du Bitmap en amont
     suspend fun loadBitmap(uri: Uri): android.graphics.Bitmap? {
         return imageProcessor.loadScaledBitmap(uri)
     }
@@ -108,7 +103,12 @@ class DashboardViewModel @Inject constructor(
             if (result.title != null) {
                 _scanEvent.send(ScanEvent.Success(result.title, result.imageUrl))
             } else {
-                _scanEvent.send(ScanEvent.Error(result.errorMsg ?: "error_scan_not_found"))
+                val errorEvent = when (result.errorMsg) {
+                    "error_scan_limit" -> ScanEvent.Error.LimitReached
+                    "error_scan_not_found" -> ScanEvent.Error.NotFound
+                    else -> ScanEvent.Error.Unknown(result.errorMsg ?: "Erreur inconnue")
+                }
+                _scanEvent.send(errorEvent)
             }
         }
     }

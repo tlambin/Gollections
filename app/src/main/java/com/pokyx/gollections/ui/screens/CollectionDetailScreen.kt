@@ -142,7 +142,11 @@ fun CollectionDetailScreen(
                         onAddItemClick(event.title, event.imageUrl)
                     }
                     is ScanEvent.Error -> {
-                        val msg = if (event.message == "error_scan_limit") msgLimit else msgNotFound
+                        val msg = when (event) {
+                            is ScanEvent.Error.LimitReached -> msgLimit
+                            is ScanEvent.Error.NotFound -> msgNotFound
+                            is ScanEvent.Error.Unknown -> event.message
+                        }
                         scope.launch { snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Long) }
                     }
                 }
