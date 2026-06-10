@@ -53,8 +53,8 @@ data class ItemFormState(
     val loanDate: String = "",
     val status: String = "Non commencé",
     val selectedTags: Set<Tag> = emptySet(),
-    val properties: List<ItemProperty> = emptyList(), // ✅ Modifié pour inclure la section
-    val customSections: List<String> = emptyList(),   // ✅ NOUVEAU: Stocke les sections vides créées par l'UI
+    val properties: List<ItemProperty> = emptyList(),
+    val customSections: List<String> = emptyList(),
     val attachments: List<String> = emptyList()
 )
 
@@ -138,7 +138,9 @@ class ItemViewModel @Inject constructor(
                     val currentProps = oldState.properties.toMutableList()
                     templates.forEach { template ->
                         if (currentProps.none { it.label == template.propertyName }) {
-                            currentProps.add(ItemProperty(itemId = 0, label = template.propertyName, value = "", sectionName = "Informations détaillées"))
+                            // ✅ NOUVEAU: Récupère le type du template ou TEXT par défaut
+                            val type = template.propertyType.ifBlank { "TEXT" }
+                            currentProps.add(ItemProperty(itemId = 0, label = template.propertyName, value = "", sectionName = "Informations générales", type = type))
                         }
                     }
                     oldState.copy(properties = currentProps)
@@ -150,14 +152,14 @@ class ItemViewModel @Inject constructor(
     fun addAttachment(uri: String) { updateForm { it.copy(attachments = it.attachments + uri) } }
     fun removeAttachment(uri: String) { updateForm { it.copy(attachments = it.attachments - uri) } }
 
-    // ✅ NOUVELLES FONCTIONS DE GESTION DES SECTIONS ET CHAMPS
     fun addSection(sectionName: String) {
         updateForm { it.copy(customSections = (it.customSections + sectionName).distinct()) }
     }
 
-    fun addProperty(sectionName: String, label: String) {
+    // ✅ NOUVEAU: La méthode accepte maintenant le paramètre 'type'
+    fun addProperty(sectionName: String, label: String, type: String) {
         updateForm { state ->
-            val newProp = ItemProperty(itemId = 0, label = label, value = "", sectionName = sectionName)
+            val newProp = ItemProperty(itemId = 0, label = label, value = "", sectionName = sectionName, type = type)
             state.copy(properties = state.properties + newProp)
         }
     }
@@ -191,7 +193,7 @@ class ItemViewModel @Inject constructor(
                     status = item.status, isLoaned = item.isLoaned, loanTo = item.loanTo, loanDate = item.loanDate,
                     itemType = item.itemType, displayFormat = item.displayFormat, selectedPath = path,
                     selectedTags = itemWithTags.tags.toSet(), attachments = fetchedAttachments,
-                    properties = itemWithTags.properties, // Déjà une List<ItemProperty> !
+                    properties = itemWithTags.properties,
                     customSections = itemWithTags.properties.map { it.sectionName }.distinct()
                 )
             }
@@ -207,7 +209,15 @@ class ItemViewModel @Inject constructor(
             ItemType.MUSIC -> listOf("Artiste", "Album", "Format (Vinyle, CD, Cassette)", "Année de sortie")
             ItemType.OTHER -> emptyList()
         }
-        val mappedProps = defaultPropsForType.map { ItemProperty(itemId = 0, label = it, value = "", sectionName = "Informations détaillées") }
+        val mappedProps = defaultPropsForType.map {
+            // ✅ NOUVEAU: Auto-détection du type pour les champs par défaut
+            val type = when {
+                it.contains("Date") -> "DATE"
+                it.contains("Année") || it.contains("pages") -> "NUMBER"
+                else -> "TEXT"
+            }
+            ItemProperty(itemId = 0, label = it, value = "", sectionName = "Informations générales", type = type)
+        }
         updateForm { oldState -> oldState.copy(itemType = newType, properties = mappedProps) }
     }
 
@@ -226,6 +236,7 @@ class ItemViewModel @Inject constructor(
     }
 
     fun deleteItem(item: CollectionItem) { viewModelScope.launch { deleteItemUseCase(item) } }
+    fun getAttachmentsStream(itemId: Int): Flow<List<ItemAttachment>> = attachmentDao.getAttachmentsForItem(itemId)
     fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = itemRepository.getItemByIdWithTags(id)
     fun getTagsForCollections(collectionIds: List<Long>): Flow<List<Tag>> = if (collectionIds.isEmpty()) flowOf(emptyList()) else tagRepository.getTagsByCollectionIds(collectionIds)
     fun insertTag(name: String, collectionId: Long) { viewModelScope.launch { tagRepository.insertTag(Tag(name = name, collectionId = collectionId)) } }
@@ -237,7 +248,4 @@ class ItemViewModel @Inject constructor(
             onResult(uri?.toString())
         }
     }
-
-    // Ajoute cette fonction dans ItemViewModel.kt
-    fun getAttachmentsStream(itemId: Int): Flow<List<ItemAttachment>> = attachmentDao.getAttachmentsForItem(itemId)
 }

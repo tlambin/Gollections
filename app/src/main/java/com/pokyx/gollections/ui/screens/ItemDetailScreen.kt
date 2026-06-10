@@ -86,7 +86,7 @@ fun ItemDetailScreen(
                 .padding(paddingValues),
             contentPadding = PaddingValues(bottom = 100.dp)
         ) {
-            // 1. IMAGE D'EN-TÊTE AVEC LE BON FORMAT
+            // 1. IMAGE AVEC RESPECT DU FORMAT DYNAMIQUE (PORTRAIT / PAYSAGE)
             item {
                 val imageRatio = if (item.displayFormat == DisplayFormat.LANDSCAPE) 16f / 9f else 3f / 4f
                 Box(
@@ -111,7 +111,7 @@ fun ItemDetailScreen(
                 }
             }
 
-            // 2. EN-TÊTE PRINCIPAL (Titre, Type, Tags)
+            // 2. EN-TÊTE DU PRODUIT (Titre, Catégorie, Tags)
             item {
                 Column(
                     modifier = Modifier
@@ -126,18 +126,26 @@ fun ItemDetailScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "${item.itemType.emoji} ${item.itemType.label}", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
-                    }
+                    Text(
+                        text = "${item.itemType.emoji} ${item.itemType.label}",
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
 
                     if (tags.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(12.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             tags.forEach { tag ->
                                 SuggestionChip(
                                     onClick = { },
                                     label = { Text(tag.name) },
-                                    colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+                                    colors = SuggestionChipDefaults.suggestionChipColors(
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                                    )
                                 )
                             }
                         }
@@ -145,30 +153,44 @@ fun ItemDetailScreen(
                 }
             }
 
-            // 3. SECTIONS DYNAMIQUES
+            // 3. AFFICHAGE DES SECTIONS ET DES CHAMPS PERSONNALISÉS RETROUVÉS
             val propertiesBySection = properties.groupBy { it.sectionName }
 
             propertiesBySection.forEach { (sectionName, props) ->
                 item {
-                    DetailSectionCard(title = sectionName) {
+                    CustomSectionCard(title = sectionName) {
                         props.forEachIndexed { index, prop ->
-                            DetailRow(label = prop.label, value = prop.value)
+                            // Transformation des chaînes booléennes en valeurs claires pour l'utilisateur
+                            val displayValue = if (prop.type == "BOOLEAN") {
+                                if (prop.value == "true") "Oui" else "Non"
+                            } else {
+                                prop.value
+                            }
+
+                            DetailRow(label = prop.label, value = displayValue)
+
                             if (index < props.size - 1) {
-                                HorizontalDivider(modifier = Modifier.padding(start = 16.dp), color = backgroundColor)
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 16.dp),
+                                    color = backgroundColor
+                                )
                             }
                         }
                     }
                 }
             }
 
-            // 4. PIÈCES JOINTES
+            // 4. ZONE DES PIÈCES JOINTES (FACTURES / TICKETS DE CAISSE)
             if (attachments.isNotEmpty()) {
                 item {
-                    DetailSectionCard(title = "Pièces jointes") {
+                    CustomSectionCard(title = "Pièces jointes") {
                         attachments.forEachIndexed { index, attachment ->
                             AttachmentRow(uriString = attachment.uri)
                             if (index < attachments.size - 1) {
-                                HorizontalDivider(modifier = Modifier.padding(start = 48.dp), color = backgroundColor)
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 48.dp),
+                                    color = backgroundColor
+                                )
                             }
                         }
                     }
@@ -179,7 +201,7 @@ fun ItemDetailScreen(
 }
 
 @Composable
-fun DetailSectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+fun CustomSectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -236,19 +258,16 @@ fun AttachmentRow(uriString: String) {
             .clickable {
                 try {
                     val uri = Uri.parse(uriString)
-
-                    // ✅ CORRECTION 1 : On demande à Android de détecter le type exact du fichier (ex: application/pdf, image/jpeg...)
+                    // Détection à la volée du type MIME de la pièce jointe (PDF, JPEG, etc.)
                     val mimeType = context.contentResolver.getType(uri) ?: "*/*"
 
-                    // ✅ CORRECTION 2 : On passe l'URI ET le type de fichier à l'Intent
                     val intent = Intent(Intent.ACTION_VIEW).apply {
                         setDataAndType(uri, mimeType)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-
                     context.startActivity(intent)
                 } catch (e: Exception) {
-                    Toast.makeText(context, "Impossible d'ouvrir ce fichier (application introuvable)", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Impossible d'ouvrir ce fichier", Toast.LENGTH_SHORT).show()
                 }
             }
             .padding(horizontal = 16.dp, vertical = 16.dp),

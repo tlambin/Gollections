@@ -24,5 +24,7 @@ data class ItemProperty(
     val label: String,
     val value: String,
     @ColumnInfo(name = "section_name", defaultValue = "Informations générales")
-    val sectionName: String = "Informations générales"
+    val sectionName: String = "Informations générales",
+    @ColumnInfo(name = "type", defaultValue = "TEXT") // ✅ NOUVEAU: Type de donnée
+    val type: String = "TEXT"
 )

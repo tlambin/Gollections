@@ -30,7 +30,7 @@ import com.pokyx.gollections.data.model.Tag
         CollectionItemFts::class,
         ItemAttachment::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
