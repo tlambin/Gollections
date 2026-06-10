@@ -235,8 +235,17 @@ fun AttachmentRow(uriString: String) {
             .fillMaxWidth()
             .clickable {
                 try {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uriString))
-                    intent.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    val uri = Uri.parse(uriString)
+
+                    // ✅ CORRECTION 1 : On demande à Android de détecter le type exact du fichier (ex: application/pdf, image/jpeg...)
+                    val mimeType = context.contentResolver.getType(uri) ?: "*/*"
+
+                    // ✅ CORRECTION 2 : On passe l'URI ET le type de fichier à l'Intent
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, mimeType)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+
                     context.startActivity(intent)
                 } catch (e: Exception) {
                     Toast.makeText(context, "Impossible d'ouvrir ce fichier (application introuvable)", Toast.LENGTH_SHORT).show()
