@@ -62,7 +62,7 @@ fun AddItemScreen(
     scannedTitle: String? = null,
     scannedImageUrl: String? = null,
     onBackClick: () -> Unit,
-    onSaveClick: (CollectionItem, List<Tag>, Map<String, String>) -> Unit,
+    onSaveClick: (CollectionItem, List<Tag>, Map<String, String>, List<String>) -> Unit,
     viewModel: ItemViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -75,7 +75,6 @@ fun AddItemScreen(
 
     var expandedCollectionIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
 
-    // États pour les boîtes de dialogue de création rapide
     var showNewCollectionDialog by remember { mutableStateOf(false) }
     var newCollectionName by remember { mutableStateOf("") }
     var showNewTypeDialog by remember { mutableStateOf(false) }
@@ -118,9 +117,12 @@ fun AddItemScreen(
                                 isLoaned = state.isLoaned,
                                 loanTo = if (state.isLoaned) state.loanTo.trim() else "",
                                 loanDate = if (state.isLoaned) state.loanDate else "",
-                                itemType = state.itemType
+                                itemType = state.itemType,
+                                displayFormat = state.displayFormat // Sauvegarde du format d'image
                             )
-                            onSaveClick(newItem, state.selectedTags.toList(), state.properties)
+
+                            // Transmission au UseCase de tous les paramètres
+                            onSaveClick(newItem, state.selectedTags.toList(), state.properties, state.attachments)
                         },
                         shape = RoundedCornerShape(20.dp),
                         contentPadding = PaddingValues(horizontal = 20.dp),
@@ -141,7 +143,6 @@ fun AddItemScreen(
             )
         }
 
-        // --- DIALOGUES DE CRÉATION RAPIDE ---
         if (showNewCollectionDialog) {
             AlertDialog(
                 onDismissRequest = { showNewCollectionDialog = false },
@@ -162,7 +163,6 @@ fun AddItemScreen(
             )
         }
 
-        // --- BOTTOM SHEET 1 : COLLECTIONS ---
         if (showCollectionSheet) {
             ModalBottomSheet(onDismissRequest = { showCollectionSheet = false }, sheetState = sheetState) {
                 Column(modifier = Modifier.padding(bottom = 24.dp).fillMaxWidth()) {
@@ -223,7 +223,6 @@ fun AddItemScreen(
             }
         }
 
-        // --- BOTTOM SHEET 2 : TYPES D'OBJET ---
         if (showTypeSheet) {
             ModalBottomSheet(onDismissRequest = { showTypeSheet = false }, sheetState = sheetState) {
                 Column(modifier = Modifier.padding(bottom = 32.dp)) {

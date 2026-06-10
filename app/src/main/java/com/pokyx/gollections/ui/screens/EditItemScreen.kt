@@ -60,7 +60,7 @@ private fun getVisibleCollections(
 fun EditItemScreen(
     itemId: Int,
     onBackClick: () -> Unit,
-    onSaveClick: (CollectionItem, List<Tag>, Map<String, String>) -> Unit,
+    onSaveClick: (CollectionItem, List<Tag>, Map<String, String>, List<String>) -> Unit,
     viewModel: ItemViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -80,6 +80,7 @@ fun EditItemScreen(
     var showNewTypeDialog by remember { mutableStateOf(false) }
     var newTypeName by remember { mutableStateOf("") }
 
+    // Chargement de l'objet et de ses pièces jointes au démarrage
     LaunchedEffect(itemWithTags, collectionsList) {
         if (itemWithTags != null && collectionsList.isNotEmpty() && !hasLoadedItem) {
             viewModel.loadItemIntoForm(itemWithTags!!, collectionsList)
@@ -118,9 +119,12 @@ fun EditItemScreen(
                                 isLoaned = state.isLoaned,
                                 loanTo = if (state.isLoaned) state.loanTo.trim() else "",
                                 loanDate = if (state.isLoaned) state.loanDate else "",
-                                itemType = state.itemType
+                                itemType = state.itemType,
+                                displayFormat = state.displayFormat // Actualisation du format
                             )
-                            onSaveClick(updatedItem, state.selectedTags.toList(), state.properties)
+
+                            // Transmission des paramètres pour la mise à jour
+                            onSaveClick(updatedItem, state.selectedTags.toList(), state.properties, state.attachments)
                         },
                         shape = RoundedCornerShape(20.dp),
                         contentPadding = PaddingValues(horizontal = 20.dp),
@@ -145,7 +149,6 @@ fun EditItemScreen(
             }
         }
 
-        // --- DIALOGUES DE CRÉATION RAPIDE ---
         if (showNewCollectionDialog) {
             AlertDialog(
                 onDismissRequest = { showNewCollectionDialog = false },

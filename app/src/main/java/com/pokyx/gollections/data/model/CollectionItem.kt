@@ -1,10 +1,16 @@
 package com.pokyx.gollections.data.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
+
+enum class DisplayFormat {
+    PORTRAIT,
+    LANDSCAPE
+}
 
 enum class ItemType(val label: String, val emoji: String) {
     MOVIE("Film", "🎬"),
@@ -15,13 +21,19 @@ enum class ItemType(val label: String, val emoji: String) {
 }
 
 class Converters {
-    // OPTIMISATION : Accès direct sécurisé sans bloc try/catch coûteux
     @TypeConverter
     fun toItemType(value: String): ItemType =
         ItemType.entries.find { it.name == value } ?: ItemType.OTHER
 
     @TypeConverter
     fun fromItemType(value: ItemType): String = value.name
+
+    @TypeConverter
+    fun toDisplayFormat(value: String): DisplayFormat =
+        DisplayFormat.entries.find { it.name == value } ?: DisplayFormat.PORTRAIT
+
+    @TypeConverter
+    fun fromDisplayFormat(value: DisplayFormat): String = value.name
 }
 
 @Entity(
@@ -50,5 +62,8 @@ data class CollectionItem(
     val status: String = "Non commencé",
     val comment: String = "",
     val imageUrl: String = "",
-    val itemType: ItemType = ItemType.OTHER
+    val itemType: ItemType = ItemType.OTHER,
+
+    @ColumnInfo(name = "display_format", defaultValue = "LANDSCAPE")
+    val displayFormat: DisplayFormat = DisplayFormat.LANDSCAPE
 )

@@ -101,8 +101,9 @@ fun GollectionsNavGraph(navController: NavHostController) {
                     scannedTitle = route.scannedTitle,
                     scannedImageUrl = route.scannedImageUrl,
                     onBackClick = { navController.popBackStack() },
-                    onSaveClick = { newItem, tags, properties ->
-                        viewModel.insertItemWithTags(newItem, tags, properties)
+                    // ✅ CORRECTION ICI : Ajout du paramètre attachments
+                    onSaveClick = { newItem, tags, properties, attachments ->
+                        viewModel.insertItemWithTags(newItem, tags, properties, attachments)
                         navController.popBackStack() // Retour instantané après la demande de sauvegarde
                     },
                     viewModel = viewModel
@@ -132,8 +133,9 @@ fun GollectionsNavGraph(navController: NavHostController) {
                 EditItemScreen(
                     itemId = route.itemId,
                     onBackClick = { navController.popBackStack() },
-                    onSaveClick = { updatedItem, tags, properties ->
-                        viewModel.updateItemWithTags(updatedItem, tags, properties)
+                    // ✅ CORRECTION ICI : Ajout du paramètre attachments
+                    onSaveClick = { updatedItem, tags, properties, attachments ->
+                        viewModel.updateItemWithTags(updatedItem, tags, properties, attachments)
                         navController.popBackStack()
                     },
                     viewModel = viewModel

@@ -5,10 +5,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
+import com.pokyx.gollections.data.dao.ItemAttachmentDao
 import com.pokyx.gollections.data.model.Collection
 import com.pokyx.gollections.data.model.CollectionItem
 import com.pokyx.gollections.data.model.ItemType
+import com.pokyx.gollections.data.model.DisplayFormat
 import com.pokyx.gollections.data.model.CollectionPropertyTemplate
+import com.pokyx.gollections.data.model.ItemProperty
+import com.pokyx.gollections.data.model.ItemAttachment
 import com.pokyx.gollections.data.repository.CollectionPropertyTemplateRepository
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ImageProcessorRepository
@@ -39,6 +43,7 @@ import javax.inject.Inject
 data class ItemFormState(
     val title: String = "",
     val itemType: ItemType = ItemType.OTHER,
+    val displayFormat: DisplayFormat = DisplayFormat.LANDSCAPE, // ✅ CORRECTION: Le format est mémorisé ici !
     val selectedPath: List<Long> = emptyList(),
     val purchaseDate: String = "",
     val price: String = "",
@@ -49,7 +54,8 @@ data class ItemFormState(
     val status: String = "Non commencé",
     val selectedTags: Set<Tag> = emptySet(),
     val properties: Map<String, String> = emptyMap(),
-    val propertyTypes: Map<String, String> = emptyMap() // NOUVEAU : Associe chaque champ à son type (TEXT, NUMBER...)
+    val propertyTypes: Map<String, String> = emptyMap(),
+    val attachments: List<String> = emptyList()
 )
 
 @HiltViewModel
@@ -59,6 +65,7 @@ class ItemViewModel @Inject constructor(
     private val itemRepository: ItemRepository,
     private val tagRepository: TagRepository,
     private val templateRepository: CollectionPropertyTemplateRepository,
+    private val attachmentDao: ItemAttachmentDao, // ✅ CORRECTION: Nécessaire pour recharger les factures
     private val imageProcessor: ImageProcessorRepository,
     private val insertItemUseCase: InsertItemUseCase,
     private val updateItemUseCase: UpdateItemUseCase,
@@ -119,7 +126,9 @@ class ItemViewModel @Inject constructor(
                 imageUrl = scannedImageUrl ?: "",
                 purchaseDate = currentDate,
                 loanDate = currentDate,
-                itemType = autoType
+                itemType = autoType,
+                displayFormat = DisplayFormat.LANDSCAPE,
+                attachments = emptyList()
             )
         }
         initialPath.lastOrNull()?.let { fetchTemplatesForCollection(it) }
@@ -156,64 +165,46 @@ class ItemViewModel @Inject constructor(
         }
     }
 
-    // MISE À JOUR : Prend désormais en compte le type de données sélectionné
-    fun addCustomPropertyTemplate(collectionId: Long, propertyName: String, propertyType: String) {
-        viewModelScope.launch {
-            templateRepository.insertTemplate(
-                CollectionPropertyTemplate(
-                    collectionId = collectionId,
-                    propertyName = propertyName,
-                    propertyType = propertyType
-                )
-            )
-            updateForm { oldState ->
-                val newProps = oldState.properties + (propertyName to "")
-                val newTypes = oldState.propertyTypes + (propertyName to propertyType)
-                oldState.copy(properties = newProps, propertyTypes = newTypes)
-            }
-        }
+    fun addAttachment(uri: String) {
+        updateForm { it.copy(attachments = it.attachments + uri) }
     }
 
-    // NOUVEAU : Supprime un champ de la BDD et rafraîchit l'écran en cours
-    fun deleteCustomPropertyTemplate(collectionId: Long, propertyName: String) {
-        viewModelScope.launch {
-            val currentTemplates = templateRepository.getTemplatesForCollection(collectionId).first()
-            currentTemplates.find { it.propertyName == propertyName }?.let { target ->
-                templateRepository.deleteTemplate(target)
-            }
-            updateForm { oldState ->
-                val newProps = oldState.properties.toMutableMap().apply { remove(propertyName) }
-                val newTypes = oldState.propertyTypes.toMutableMap().apply { remove(propertyName) }
-                oldState.copy(properties = newProps, propertyTypes = newTypes)
-            }
-        }
+    fun removeAttachment(uri: String) {
+        updateForm { it.copy(attachments = it.attachments - uri) }
     }
 
+    // ✅ CORRECTION MAJEURE: On charge les attachments et le DisplayFormat depuis la base
     fun loadItemIntoForm(itemWithTags: CollectionItemWithTags, collectionsList: List<Collection>) {
         isFormInitialized = true
         val item = itemWithTags.item
-        val priceString = if (item.price > 0.0) item.price.toString().replace(".", ",") else ""
-        val path = com.pokyx.gollections.utils.buildPathBottomUp(item.collectionId, collectionsList)
 
-        val mappedProperties = itemWithTags.properties.associate { prop -> prop.label to prop.value }
+        viewModelScope.launch {
+            val fetchedAttachments = attachmentDao.getAttachmentsForItemDirect(item.id).map { it.uri }
 
-        updateForm { oldState ->
-            oldState.copy(
-                title = item.title,
-                price = priceString,
-                purchaseDate = item.purchaseDate,
-                imageUrl = item.imageUrl,
-                status = item.status,
-                isLoaned = item.isLoaned,
-                loanTo = item.loanTo,
-                loanDate = item.loanDate,
-                itemType = item.itemType,
-                selectedPath = path,
-                selectedTags = itemWithTags.tags.toSet(),
-                properties = mappedProperties
-            )
+            val priceString = if (item.price > 0.0) item.price.toString().replace(".", ",") else ""
+            val path = com.pokyx.gollections.utils.buildPathBottomUp(item.collectionId, collectionsList)
+            val mappedProperties = itemWithTags.properties.associate { prop -> prop.label to prop.value }
+
+            updateForm { oldState ->
+                oldState.copy(
+                    title = item.title,
+                    price = priceString,
+                    purchaseDate = item.purchaseDate,
+                    imageUrl = item.imageUrl,
+                    status = item.status,
+                    isLoaned = item.isLoaned,
+                    loanTo = item.loanTo,
+                    loanDate = item.loanDate,
+                    itemType = item.itemType,
+                    displayFormat = item.displayFormat, // Recharge le format
+                    selectedPath = path,
+                    selectedTags = itemWithTags.tags.toSet(),
+                    properties = mappedProperties,
+                    attachments = fetchedAttachments // Recharge les factures
+                )
+            }
+            fetchTemplatesForCollection(item.collectionId)
         }
-        fetchTemplatesForCollection(item.collectionId)
     }
 
     fun changeItemType(newType: ItemType) {
@@ -224,17 +215,11 @@ class ItemViewModel @Inject constructor(
             ItemType.MUSIC -> mapOf("Artiste" to "", "Album" to "", "Format (Vinyle, CD, Cassette)" to "", "Année de sortie" to "")
             ItemType.OTHER -> emptyMap()
         }
-
         val defaultTypesForFields = defaultPropsForType.mapValues { (key, _) ->
             if (key.contains("Année") || key.contains("pages") || key.contains("publication")) "NUMBER" else "TEXT"
         }
-
         updateForm { oldState ->
-            oldState.copy(
-                itemType = newType,
-                properties = defaultPropsForType,
-                propertyTypes = defaultTypesForFields
-            )
+            oldState.copy(itemType = newType, properties = defaultPropsForType, propertyTypes = defaultTypesForFields)
         }
     }
 
@@ -250,18 +235,23 @@ class ItemViewModel @Inject constructor(
         }
     }
 
-    fun insertItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) {
-        viewModelScope.launch { insertItemUseCase(item, tags, properties) }
+    fun insertItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>, attachments: List<String>) {
+        viewModelScope.launch {
+            val itemProperties = properties.map { (key, value) -> ItemProperty(itemId = 0, label = key, value = value) }
+            val itemAttachments = attachments.map { uri -> ItemAttachment(itemId = 0, uri = uri) }
+            insertItemUseCase(item, tags, itemProperties, itemAttachments)
+        }
     }
 
-    fun updateItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>) {
-        viewModelScope.launch { updateItemUseCase(item, tags, properties) }
+    fun updateItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>, attachments: List<String>) {
+        viewModelScope.launch {
+            val itemProperties = properties.map { (key, value) -> ItemProperty(itemId = item.id, label = key, value = value) }
+            val itemAttachments = attachments.map { uri -> ItemAttachment(itemId = item.id, uri = uri) }
+            updateItemUseCase(item, tags, itemProperties, itemAttachments)
+        }
     }
 
-    fun deleteItem(item: CollectionItem) {
-        viewModelScope.launch { deleteItemUseCase(item) }
-    }
-
+    fun deleteItem(item: CollectionItem) { viewModelScope.launch { deleteItemUseCase(item) } }
     fun getItemByIdWithTags(id: Int): Flow<CollectionItemWithTags?> = itemRepository.getItemByIdWithTags(id)
     fun getTagsForCollections(collectionIds: List<Long>): Flow<List<Tag>> = if (collectionIds.isEmpty()) flowOf(emptyList()) else tagRepository.getTagsByCollectionIds(collectionIds)
     fun insertTag(name: String, collectionId: Long) { viewModelScope.launch { tagRepository.insertTag(Tag(name = name, collectionId = collectionId)) } }

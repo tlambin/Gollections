@@ -35,18 +35,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.ui.theme.GollectionsIcons
-import com.pokyx.gollections.ui.viewmodels.ItemFormState
+import com.pokyx.gollections.data.model.DisplayFormat
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
 import com.pokyx.gollections.utils.getEmojiForCollection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-
-enum class DisplayFormat(val ratio: Float, val label: String) {
-    PORTRAIT(3f / 4f, "Portrait"),
-    LANDSCAPE(16f / 9f, "Paysage")
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,8 +65,9 @@ fun ItemFormBody(
     var isProcessingImage by remember { mutableStateOf(false) }
     var tempPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
 
-    var selectedImageFormat by rememberSaveable { mutableStateOf(DisplayFormat.PORTRAIT) }
-    var attachments by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    // ✅ NOUVEAU: Variables pour la boite de dialogue "Nouveau champ"
+    var showAddFieldDialog by remember { mutableStateOf(false) }
+    var newFieldName by remember { mutableStateOf("") }
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) { viewModel.updateForm { it.copy(imageUrl = uri.toString()) } }
@@ -79,8 +75,9 @@ fun ItemFormBody(
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success && tempPhotoUriString != null) { viewModel.updateForm { it.copy(imageUrl = tempPhotoUriString!!) } }
     }
+
     val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) { attachments = attachments + uri }
+        if (uri != null) { viewModel.addAttachment(uri.toString()) }
     }
 
     val backgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
@@ -95,14 +92,12 @@ fun ItemFormBody(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
 
-        // ====================================================================
-        // 1. BLOC IMAGE ET BULLE DE FORMAT
-        // ====================================================================
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(selectedImageFormat.ratio)
+                    // ✅ CORRECTION: Utilise le state.displayFormat
+                    .aspectRatio(if (state.displayFormat == DisplayFormat.LANDSCAPE) 16f/9f else 3f/4f)
                     .clip(RoundedCornerShape(16.dp))
                     .background(cardColor)
                     .clickable { showSourceDialog = true },
@@ -122,55 +117,31 @@ fun ItemFormBody(
                         .padding(12.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
-                        .clickable { selectedImageFormat = if (selectedImageFormat == DisplayFormat.PORTRAIT) DisplayFormat.LANDSCAPE else DisplayFormat.PORTRAIT }
+                        // ✅ CORRECTION: Met à jour le ViewModel au clic !
+                        .clickable {
+                            viewModel.updateForm {
+                                it.copy(displayFormat = if (state.displayFormat == DisplayFormat.PORTRAIT) DisplayFormat.LANDSCAPE else DisplayFormat.PORTRAIT)
+                            }
+                        }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(imageVector = Icons.Default.Edit, contentDescription = "Format", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurface)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = selectedImageFormat.label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        val labelStr = if (state.displayFormat == DisplayFormat.LANDSCAPE) "Paysage" else "Portrait"
+                        Text(text = labelStr, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
         }
 
-        // ====================================================================
-        // 2. TITRE PRINCIPAL
-        // ====================================================================
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = cardColor)
-        ) {
-            TextField(
-                value = state.title,
-                onValueChange = { newTitle -> viewModel.updateForm { it.copy(title = newTitle) } },
-                placeholder = { Text("Titre de l'objet", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                textStyle = LocalTextStyle.current.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
-                singleLine = true
-            )
+        Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
+            TextField(value = state.title, onValueChange = { newTitle -> viewModel.updateForm { it.copy(title = newTitle) } }, placeholder = { Text("Titre de l'objet", fontSize = 20.sp, fontWeight = FontWeight.Bold) }, modifier = Modifier.fillMaxWidth(), colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent), textStyle = LocalTextStyle.current.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold), singleLine = true)
         }
 
-        // ====================================================================
-        // 3. CARTE D'IDENTITÉ (DOSSIER & TYPE)
-        // ====================================================================
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = cardColor)
-        ) {
+        Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
             Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth().clickable { onCollectionClick() }.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(modifier = Modifier.fillMaxWidth().clickable { onCollectionClick() }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (finalSelectedCollection != null) {
                         if (finalSelectedCover.startsWith("file") || finalSelectedCover.startsWith("/") || finalSelectedCover.startsWith("content") || finalSelectedCover.startsWith("http")) {
                             AsyncImage(model = finalSelectedCover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(24.dp).clip(CircleShape))
@@ -178,22 +149,14 @@ fun ItemFormBody(
                             val emoji = if (finalSelectedCover.isNotBlank()) finalSelectedCover else getEmojiForCollection(finalSelectedName)
                             Text(text = emoji, fontSize = 18.sp)
                         }
-                    } else {
-                        Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
-                    }
-
+                    } else { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary) }
                     Spacer(modifier = Modifier.width(12.dp))
                     Text("Dossier", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                     Text(finalSelectedName, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
                     Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.rotate(-90f))
                 }
-
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = backgroundColor)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().clickable { onTypeClick() }.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(modifier = Modifier.fillMaxWidth().clickable { onTypeClick() }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(text = state.itemType.emoji, fontSize = 18.sp)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text("Type d'objet", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
@@ -203,47 +166,33 @@ fun ItemFormBody(
             }
         }
 
-        // ====================================================================
-        // 4. SECTIONS PROTON PASS
-        // ====================================================================
-        if (state.properties.isNotEmpty()) {
-            ProtonPassSection(
-                title = "Informations détaillées",
-                onAddFieldClick = { /* Action ajout de champ */ }
-            ) {
-                state.properties.forEach { (propertyName, value) ->
-                    ProtonPassFieldRow(
-                        label = propertyName,
-                        value = value,
-                        onValueChange = { newValue -> viewModel.updateProperty(propertyName, newValue) },
-                        onDeleteClick = { viewModel.removeProperty(propertyName) }
-                    )
-                    HorizontalDivider(color = backgroundColor, thickness = 1.dp, modifier = Modifier.padding(start = 16.dp))
-                }
+        // ✅ CORRECTION: S'affiche TOUT LE TEMPS pour pouvoir cliquer sur "Ajouter un champ"
+        ProtonPassSection(
+            title = "Informations détaillées",
+            onAddFieldClick = { showAddFieldDialog = true } // ✅ Ouvre la dialogue
+        ) {
+            state.properties.forEach { (propertyName, value) ->
+                ProtonPassFieldRow(
+                    label = propertyName,
+                    value = value,
+                    onValueChange = { newValue -> viewModel.updateProperty(propertyName, newValue) },
+                    onDeleteClick = { viewModel.removeProperty(propertyName) }
+                )
+                HorizontalDivider(color = backgroundColor, thickness = 1.dp, modifier = Modifier.padding(start = 16.dp))
             }
         }
 
         ProtonPassSection(
             title = "Informations d'acquisition",
-            onAddFieldClick = { /* Action ajout de champ */ }
+            onAddFieldClick = { showAddFieldDialog = true }
         ) {
-            ProtonPassFieldRow(
-                label = "Prix d'achat",
-                value = state.price,
-                onValueChange = { newPrice -> viewModel.updateForm { form -> form.copy(price = newPrice) } },
-                keyboardType = KeyboardType.Number
-            )
+            ProtonPassFieldRow(label = "Prix d'achat", value = state.price, onValueChange = { newPrice -> viewModel.updateForm { form -> form.copy(price = newPrice) } }, keyboardType = KeyboardType.Number)
             HorizontalDivider(color = backgroundColor, thickness = 1.dp, modifier = Modifier.padding(start = 16.dp))
-            ProtonPassFieldRow(
-                label = "Date d'achat",
-                value = state.purchaseDate,
-                onValueChange = {},
-                readOnly = true
-            )
+            ProtonPassFieldRow(label = "Date d'achat", value = state.purchaseDate, onValueChange = {}, readOnly = true)
         }
 
         TextButton(
-            onClick = { /* Création de section dynamique */ },
+            onClick = { Toast.makeText(context, "Les sections personnalisées arrivent bientôt ! Utilisez les champs personnalisés en attendant.", Toast.LENGTH_LONG).show() },
             modifier = Modifier.padding(horizontal = 16.dp).align(Alignment.Start)
         ) {
             Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -251,81 +200,76 @@ fun ItemFormBody(
             Text("Créer une section", fontWeight = FontWeight.Medium)
         }
 
-        // ====================================================================
-        // 5. PIÈCES JOINTES
-        // ====================================================================
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = cardColor)
-        ) {
+        Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
             Column {
                 Text(text = "Pièces jointes", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
-
-                attachments.forEach { uri ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                state.attachments.forEach { uriString ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(text = "Document joint", modifier = Modifier.weight(1f), maxLines = 1, color = MaterialTheme.colorScheme.onSurface)
-                        IconButton(onClick = { attachments = attachments - uri }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Close, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error)
-                        }
+                        IconButton(onClick = { viewModel.removeAttachment(uriString) }, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.Close, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error) }
                     }
                     HorizontalDivider(color = backgroundColor, thickness = 1.dp, modifier = Modifier.padding(start = 48.dp))
                 }
-
-                TextButton(
-                    onClick = { fileLauncher.launch("*/*") },
-                    modifier = Modifier.fillMaxWidth().padding(8.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Ajouter un fichier (Facture, Ticket...)")
+                TextButton(onClick = { fileLauncher.launch("*/*") }, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+                    Icon(Icons.Default.Add, contentDescription = null); Spacer(modifier = Modifier.width(8.dp)); Text("Ajouter un fichier (Facture, Ticket...)")
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(100.dp))
     }
 
-    // --- DIALOGUES ---
+    // ✅ NOUVEAU: Boîte de dialogue pour ajouter un champ dynamique
+    if (showAddFieldDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddFieldDialog = false },
+            title = { Text("Nouveau champ personnalisé", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = newFieldName,
+                    onValueChange = { newFieldName = it },
+                    label = { Text("Ex: Éditeur, Taille, État...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (newFieldName.isNotBlank()) {
+                        viewModel.updateProperty(newFieldName.trim(), "")
+                        newFieldName = ""
+                        showAddFieldDialog = false
+                    }
+                }) { Text("Ajouter") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddFieldDialog = false }) { Text("Annuler") }
+            }
+        )
+    }
+
     if (showSourceDialog) {
         AlertDialog(
             onDismissRequest = { showSourceDialog = false },
             title = { Text("Source de l'illustration", fontWeight = FontWeight.Bold) },
             text = {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; showUrlDialog = true }.padding(8.dp)) {
-                        Icon(imageVector = GollectionsIcons.Planet, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                        Text("URL", fontSize = 12.sp)
-                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; showUrlDialog = true }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.Planet, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Text("URL", fontSize = 12.sp) }
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
                         showSourceDialog = false
                         scope.launch(Dispatchers.IO) {
                             val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir)
                             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
-                            withContext(Dispatchers.Main) {
-                                tempPhotoUriString = uri.toString()
-                                cameraLauncher.launch(uri)
-                            }
+                            withContext(Dispatchers.Main) { tempPhotoUriString = uri.toString(); cameraLauncher.launch(uri) }
                         }
-                    }.padding(8.dp)) {
-                        Icon(imageVector = GollectionsIcons.Camera, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                        Text("Appareil", fontSize = 12.sp)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)) {
-                        Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                        Text("Galerie", fontSize = 12.sp)
-                    }
+                    }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.Camera, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Text("Appareil", fontSize = 12.sp) }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Text("Galerie", fontSize = 12.sp) }
                 }
             },
             confirmButton = { TextButton(onClick = { showSourceDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
-
     if (showUrlDialog) {
         AlertDialog(
             onDismissRequest = { showUrlDialog = false },
@@ -343,9 +287,7 @@ fun ProtonPassSection(title: String, onAddFieldClick: () -> Unit, content: @Comp
         Column {
             Text(text = title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
             content()
-            TextButton(onClick = onAddFieldClick, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Ajouter un champ")
-            }
+            TextButton(onClick = onAddFieldClick, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Ajouter un champ") }
         }
     }
 }
