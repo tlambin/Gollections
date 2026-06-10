@@ -1,6 +1,6 @@
 package com.pokyx.gollections.domain.usecase
 
-import com.pokyx.gollections.data.CollectionItem
+import com.pokyx.gollections.data.model.CollectionItem
 import com.pokyx.gollections.data.repository.ImageProcessorRepository
 import com.pokyx.gollections.data.repository.ItemRepository
 import kotlinx.coroutines.Dispatchers

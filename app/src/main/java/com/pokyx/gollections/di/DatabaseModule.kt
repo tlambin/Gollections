@@ -2,10 +2,10 @@ package com.pokyx.gollections.di
 
 import android.content.Context
 import com.pokyx.gollections.data.AppDatabase
-import com.pokyx.gollections.data.CollectionDao
-import com.pokyx.gollections.data.CollectionItemDao
-import com.pokyx.gollections.data.CollectionPropertyTemplateDao
-import com.pokyx.gollections.data.tag.TagDao
+import com.pokyx.gollections.data.dao.CollectionDao
+import com.pokyx.gollections.data.dao.CollectionItemDao
+import com.pokyx.gollections.data.dao.CollectionPropertyTemplateDao
+import com.pokyx.gollections.data.dao.TagDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

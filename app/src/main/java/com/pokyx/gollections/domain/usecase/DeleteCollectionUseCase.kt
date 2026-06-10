@@ -1,6 +1,6 @@
 package com.pokyx.gollections.domain.usecase
 
-import com.pokyx.gollections.data.Collection
+import com.pokyx.gollections.data.model.Collection
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ImageProcessorRepository
 import com.pokyx.gollections.data.repository.ItemRepository

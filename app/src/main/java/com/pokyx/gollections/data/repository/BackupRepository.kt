@@ -5,11 +5,11 @@ import android.net.Uri
 import android.util.Log
 import com.google.gson.Gson
 import com.pokyx.gollections.data.AppDatabase
-import com.pokyx.gollections.data.Collection
-import com.pokyx.gollections.data.CollectionItem
-import com.pokyx.gollections.data.ItemProperty
-import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
-import com.pokyx.gollections.data.tag.Tag
+import com.pokyx.gollections.data.model.Collection
+import com.pokyx.gollections.data.model.CollectionItem
+import com.pokyx.gollections.data.model.ItemProperty
+import com.pokyx.gollections.data.model.CollectionItemTagCrossRef
+import com.pokyx.gollections.data.model.Tag
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

@@ -1,5 +1,6 @@
-package com.pokyx.gollections.data
+package com.pokyx.gollections.data.dao
 
+import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
@@ -7,9 +8,11 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
-import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
-import com.pokyx.gollections.data.tag.CollectionItemWithTags
-import com.pokyx.gollections.data.tag.Tag
+import com.pokyx.gollections.data.model.CollectionItem
+import com.pokyx.gollections.data.model.ItemProperty
+import com.pokyx.gollections.data.model.CollectionItemTagCrossRef
+import com.pokyx.gollections.data.model.CollectionItemWithTags
+import com.pokyx.gollections.data.model.Tag
 import kotlinx.coroutines.flow.Flow
 
 data class CollectionItemCount(
@@ -117,7 +120,7 @@ interface CollectionItemDao {
         searchQuery: String,
         tagFilter: String,
         sortOption: String
-    ): androidx.paging.PagingSource<Int, CollectionItemWithTags>
+    ): PagingSource<Int, CollectionItemWithTags>
 
     // --- TRANSACTIONS SÉCURISÉES ---
 

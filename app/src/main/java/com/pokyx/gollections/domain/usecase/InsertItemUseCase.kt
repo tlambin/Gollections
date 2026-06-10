@@ -1,8 +1,8 @@
 package com.pokyx.gollections.domain.usecase
 
-import com.pokyx.gollections.data.CollectionItem
+import com.pokyx.gollections.data.model.CollectionItem
 import com.pokyx.gollections.data.repository.ItemRepository
-import com.pokyx.gollections.data.tag.Tag
+import com.pokyx.gollections.data.model.Tag
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject

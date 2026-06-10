@@ -1,7 +1,7 @@
 package com.pokyx.gollections.data.repository
 
-import com.pokyx.gollections.data.CollectionPropertyTemplate
-import com.pokyx.gollections.data.CollectionPropertyTemplateDao
+import com.pokyx.gollections.data.model.CollectionPropertyTemplate
+import com.pokyx.gollections.data.dao.CollectionPropertyTemplateDao
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton

@@ -6,9 +6,19 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.pokyx.gollections.data.tag.Tag
-import com.pokyx.gollections.data.tag.TagDao
-import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
+import com.pokyx.gollections.data.dao.BackupDao
+import com.pokyx.gollections.data.dao.CollectionDao
+import com.pokyx.gollections.data.dao.CollectionItemDao
+import com.pokyx.gollections.data.dao.CollectionPropertyTemplateDao
+import com.pokyx.gollections.data.model.Tag
+import com.pokyx.gollections.data.dao.TagDao
+import com.pokyx.gollections.data.model.Collection
+import com.pokyx.gollections.data.model.CollectionItem
+import com.pokyx.gollections.data.model.CollectionItemFts
+import com.pokyx.gollections.data.model.CollectionPropertyTemplate
+import com.pokyx.gollections.data.model.Converters
+import com.pokyx.gollections.data.model.ItemProperty
+import com.pokyx.gollections.data.model.CollectionItemTagCrossRef
 
 @Database(
     entities = [
@@ -21,11 +31,6 @@ import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
         CollectionPropertyTemplate::class // NOUVELLE ENTITÉ AJOUTÉE ICI
     ],
     version = 18, // PASSAGE À LA VERSION 18
-    autoMigrations = [
-        AutoMigration(from = 15, to = 16),
-        AutoMigration(from = 16, to = 17),
-        AutoMigration(from = 17, to = 18) // NOUVELLE MIGRATION AJOUTÉE ICI
-    ],
     exportSchema = true
 )
 @TypeConverters(Converters::class)

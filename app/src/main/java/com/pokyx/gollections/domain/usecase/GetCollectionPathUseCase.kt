@@ -1,6 +1,6 @@
 package com.pokyx.gollections.domain.usecase
 
-import com.pokyx.gollections.data.Collection
+import com.pokyx.gollections.data.model.Collection
 import javax.inject.Inject
 
 class GetCollectionPathUseCase @Inject constructor() {

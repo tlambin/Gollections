@@ -1,4 +1,4 @@
-package com.pokyx.gollections.data
+package com.pokyx.gollections.data.model
 
 import androidx.room.Entity
 import androidx.room.ForeignKey

@@ -5,13 +5,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
-import com.pokyx.gollections.data.Collection
+import com.pokyx.gollections.data.model.Collection
 import com.pokyx.gollections.data.repository.CollectionRepository
 import com.pokyx.gollections.data.repository.ItemRepository
 import com.pokyx.gollections.data.repository.TagRepository
 import com.pokyx.gollections.data.repository.ImageProcessorRepository
-import com.pokyx.gollections.data.tag.CollectionItemWithTags
-import com.pokyx.gollections.data.tag.Tag
+import com.pokyx.gollections.data.model.CollectionItemWithTags
+import com.pokyx.gollections.data.model.Tag
+import com.pokyx.gollections.domain.usecase.CollectionCategoryType
 import com.pokyx.gollections.domain.usecase.DeleteCollectionUseCase
 import com.pokyx.gollections.domain.usecase.GetCollectionDescendantsUseCase
 import com.pokyx.gollections.domain.usecase.InsertCollectionUseCase
@@ -42,7 +43,7 @@ class CollectionDetailViewModel @Inject constructor(
     private val tagRepository: TagRepository,
     private val getCollectionDescendantsUseCase: GetCollectionDescendantsUseCase,
     private val deleteCollectionUseCase: DeleteCollectionUseCase,
-    private val insertCollectionUseCase: InsertCollectionUseCase, // NOUVEL INJECT ICI
+    private val insertCollectionUseCase: InsertCollectionUseCase,
     private val processImageUseCase: ProcessImageUseCase,
     private val scanBarcodeUseCase: ScanBarcodeUseCase,
     private val imageProcessor: ImageProcessorRepository
@@ -64,10 +65,19 @@ class CollectionDetailViewModel @Inject constructor(
             .flowOn(Dispatchers.IO)
     }
 
-    // MISE À JOUR ICI : On délègue au UseCase
+    // MISE À JOUR ICI : Ajout de l'inférence de catégorie pour satisfaire le UseCase
     fun insertCollection(name: String, cover: String = "", parentId: Long? = null) {
         viewModelScope.launch {
-            insertCollectionUseCase(name = name, cover = cover, parentId = parentId)
+            val lowerName = name.lowercase()
+            val inferredCategory = when {
+                lowerName.contains("jeu") || lowerName.contains("console") || lowerName.contains("playstation") -> CollectionCategoryType.GAMES
+                lowerName.contains("film") || lowerName.contains("cinéma") || lowerName.contains("dvd") -> CollectionCategoryType.FILMS
+                lowerName.contains("musique") || lowerName.contains("vinyle") || lowerName.contains("cd") -> CollectionCategoryType.MUSIC
+                lowerName.contains("vêtement") || lowerName.contains("habit") || lowerName.contains("sneaker") -> CollectionCategoryType.CLOTHING
+                else -> CollectionCategoryType.CUSTOM
+            }
+
+            insertCollectionUseCase(name = name, categoryType = inferredCategory, cover = cover, parentId = parentId)
         }
     }
 

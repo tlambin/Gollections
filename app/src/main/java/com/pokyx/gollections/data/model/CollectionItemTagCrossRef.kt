@@ -1,9 +1,8 @@
-package com.pokyx.gollections.data.tag
+package com.pokyx.gollections.data.model
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
-import com.pokyx.gollections.data.CollectionItem
 
 @Entity(
     tableName = "collection_item_tag_cross_ref",

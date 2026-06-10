@@ -1,12 +1,15 @@
-package com.pokyx.gollections.data
+package com.pokyx.gollections.data.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
-import com.pokyx.gollections.data.tag.CollectionItemTagCrossRef
-import com.pokyx.gollections.data.tag.Tag
+import com.pokyx.gollections.data.model.Collection
+import com.pokyx.gollections.data.model.CollectionItem
+import com.pokyx.gollections.data.model.ItemProperty
+import com.pokyx.gollections.data.model.CollectionItemTagCrossRef
+import com.pokyx.gollections.data.model.Tag
 
 @Dao
 interface BackupDao {

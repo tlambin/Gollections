@@ -12,7 +12,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.pokyx.gollections.R
-import com.pokyx.gollections.data.Collection
+import com.pokyx.gollections.data.model.Collection
 
 fun getDynamicStatusOptions(context: Context, collectionName: String): List<String> {
     return when (collectionName.lowercase().trim()) {

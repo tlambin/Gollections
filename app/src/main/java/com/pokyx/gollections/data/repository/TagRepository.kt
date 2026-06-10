@@ -1,7 +1,7 @@
 package com.pokyx.gollections.data.repository
 
-import com.pokyx.gollections.data.tag.Tag
-import com.pokyx.gollections.data.tag.TagDao
+import com.pokyx.gollections.data.model.Tag
+import com.pokyx.gollections.data.dao.TagDao
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton

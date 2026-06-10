@@ -13,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.List
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,10 +29,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
-import com.pokyx.gollections.data.Collection
-import com.pokyx.gollections.data.CollectionItem
-import com.pokyx.gollections.data.ItemType
-import com.pokyx.gollections.data.tag.Tag
+import com.pokyx.gollections.data.model.Collection
+import com.pokyx.gollections.data.model.CollectionItem
+import com.pokyx.gollections.data.model.ItemType
+import com.pokyx.gollections.data.model.Tag
 import com.pokyx.gollections.ui.components.ItemFormBody
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
 import com.pokyx.gollections.utils.buildPathBottomUp

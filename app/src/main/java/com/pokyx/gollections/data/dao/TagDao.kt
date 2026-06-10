@@ -1,10 +1,11 @@
-package com.pokyx.gollections.data.tag
+package com.pokyx.gollections.data.dao
 
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.pokyx.gollections.data.model.Tag
 import kotlinx.coroutines.flow.Flow
 
 @Dao

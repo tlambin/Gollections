@@ -1,11 +1,5 @@
 package com.pokyx.gollections.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -21,7 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -35,7 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import coil.compose.AsyncImage
 import com.pokyx.gollections.R
-import com.pokyx.gollections.data.Collection as DBCollection
+import com.pokyx.gollections.data.model.Collection as DBCollection
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -137,7 +130,7 @@ fun DashboardScreen(
                             val barcode = barcodeScanner.startScan()
                             viewModel.fetchItemFromBarcode(barcode)
                         } catch (e: Exception) {
-                            android.util.Log.e("BarcodeScan", "Erreur ou annulation : ${e.message}")
+                            Log.e("BarcodeScan", "Erreur ou annulation : ${e.message}")
                         }
                     }
                 },
@@ -162,11 +155,18 @@ fun DashboardScreen(
                     item { CollectionsGrid(collections = rootCollections, collectionCounts = collectionCounts, onCollectionClick = onCollectionClick, onAddCollectionClick = { showAddCollectionDialog = true }, viewModel = viewModel) }
                 } else {
                     item { Text(text = "${stringResource(R.string.title_items)} (${searchResultsWithTags.size})", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp)) }
-                    if (searchResultsWithTags.isEmpty()) { item { Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_object_found), color = Color.Gray) } } }
+                    if (searchResultsWithTags.isEmpty()) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                                // FIX COULEUR : Remplacement de Color.Gray par onSurfaceVariant
+                                Text(stringResource(R.string.no_object_found), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                     else {
                         items(
                             items = searchResultsWithTags,
-                            key = { itemWithTags -> itemWithTags.item.id } // OPTIMISATION ICI
+                            key = { itemWithTags -> itemWithTags.item.id }
                         ) { itemWithTags ->
                             val item = itemWithTags.item
                             val parentCol = allCollections.find { it.id == item.collectionId }
@@ -185,7 +185,8 @@ fun DashboardScreen(
 
             if (isFabExpanded) {
                 Box(
-                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { isFabExpanded = false }
+                    // FIX COULEUR : Remplacement de Color.Black par MaterialTheme.colorScheme.scrim
+                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f)).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { isFabExpanded = false }
                 )
             }
         }
@@ -222,7 +223,8 @@ fun StatsSlider(totalItems: Int, totalCollections: Int, loanedItems: Int) {
         }
         Spacer(modifier = Modifier.height(12.dp))
         Row(Modifier.wrapContentHeight().fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            repeat(pagerState.pageCount) { iteration -> Box(modifier = Modifier.padding(2.dp).clip(CircleShape).background(if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else Color.LightGray).size(8.dp)) }
+            // FIX COULEUR : Remplacement de Color.LightGray par surfaceVariant
+            repeat(pagerState.pageCount) { iteration -> Box(modifier = Modifier.padding(2.dp).clip(CircleShape).background(if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant).size(8.dp)) }
         }
     }
 }
@@ -261,7 +263,8 @@ fun CollectionCard(title: String, count: String, cover: String, fallbackEmoji: S
                 val displayEmoji = if (cover.isNotBlank()) cover else fallbackEmoji
                 Text(text = displayEmoji, fontSize = 28.sp)
             }
-            Column { Text(text = title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1); Text(text = count, fontSize = 12.sp, color = Color.Gray) }
+            // FIX COULEUR : Remplacement de Color.Gray par onSurfaceVariant
+            Column { Text(text = title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1); Text(text = count, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }
