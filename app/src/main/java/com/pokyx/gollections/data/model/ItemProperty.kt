@@ -1,5 +1,6 @@
 package com.pokyx.gollections.data.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -12,17 +13,16 @@ import androidx.room.PrimaryKey
             entity = CollectionItem::class,
             parentColumns = ["id"],
             childColumns = ["itemId"],
-            onDelete = ForeignKey.CASCADE // Si on supprime l'objet, on supprime ses propriétés
+            onDelete = ForeignKey.CASCADE
         )
     ],
-    // OPTIMISATION : Index indispensable pour des suppressions en cascade instantanées
-    indices = [
-        Index(value = ["itemId"])
-    ]
+    indices = [Index(value = ["itemId"])]
 )
 data class ItemProperty(
-    @PrimaryKey(autoGenerate = true) val propertyId: Int = 0,
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val itemId: Int,
-    val label: String, // ex: "Réalisateur", "Éditeur", "Nombre de joueurs"
-    val value: String  // ex: "Christopher Nolan", "Nintendo", "1-4"
+    val label: String,
+    val value: String,
+    @ColumnInfo(name = "section_name", defaultValue = "Informations générales")
+    val sectionName: String = "Informations générales"
 )

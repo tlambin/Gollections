@@ -104,7 +104,7 @@ fun GollectionsNavGraph(navController: NavHostController) {
                     // ✅ CORRECTION ICI : Ajout du paramètre attachments
                     onSaveClick = { newItem, tags, properties, attachments ->
                         viewModel.insertItemWithTags(newItem, tags, properties, attachments)
-                        navController.popBackStack() // Retour instantané après la demande de sauvegarde
+                        navController.popBackStack()
                     },
                     viewModel = viewModel
                 )

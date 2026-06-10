@@ -65,8 +65,10 @@ fun ItemFormBody(
     var isProcessingImage by remember { mutableStateOf(false) }
     var tempPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // ✅ NOUVEAU: Variables pour la boite de dialogue "Nouveau champ"
-    var showAddFieldDialog by remember { mutableStateOf(false) }
+    // Dialogues de sections et champs
+    var showAddSectionDialog by remember { mutableStateOf(false) }
+    var newSectionName by remember { mutableStateOf("") }
+    var showAddFieldDialogForSection by remember { mutableStateOf<String?>(null) }
     var newFieldName by remember { mutableStateOf("") }
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -75,7 +77,6 @@ fun ItemFormBody(
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success && tempPhotoUriString != null) { viewModel.updateForm { it.copy(imageUrl = tempPhotoUriString!!) } }
     }
-
     val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) { viewModel.addAttachment(uri.toString()) }
     }
@@ -84,52 +85,27 @@ fun ItemFormBody(
     val cardColor = MaterialTheme.colorScheme.surface
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundColor)
-            .verticalScroll(rememberScrollState())
-            .padding(vertical = 16.dp),
+        modifier = Modifier.fillMaxSize().background(backgroundColor).verticalScroll(rememberScrollState()).padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    // ✅ CORRECTION: Utilise le state.displayFormat
-                    .aspectRatio(if (state.displayFormat == DisplayFormat.LANDSCAPE) 16f/9f else 3f/4f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(cardColor)
-                    .clickable { showSourceDialog = true },
+                modifier = Modifier.fillMaxWidth().aspectRatio(if (state.displayFormat == DisplayFormat.LANDSCAPE) 16f/9f else 3f/4f)
+                    .clip(RoundedCornerShape(16.dp)).background(cardColor).clickable { showSourceDialog = true },
                 contentAlignment = Alignment.Center
             ) {
-                if (isProcessingImage) {
-                    CircularProgressIndicator()
-                } else if (state.imageUrl.isNotBlank()) {
-                    AsyncImage(model = state.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                } else {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
-                }
+                if (isProcessingImage) { CircularProgressIndicator() }
+                else if (state.imageUrl.isNotBlank()) { AsyncImage(model = state.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+                else { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)) }
 
                 Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(12.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
-                        // ✅ CORRECTION: Met à jour le ViewModel au clic !
-                        .clickable {
-                            viewModel.updateForm {
-                                it.copy(displayFormat = if (state.displayFormat == DisplayFormat.PORTRAIT) DisplayFormat.LANDSCAPE else DisplayFormat.PORTRAIT)
-                            }
-                        }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+                        .clickable { viewModel.updateForm { it.copy(displayFormat = if (state.displayFormat == DisplayFormat.PORTRAIT) DisplayFormat.LANDSCAPE else DisplayFormat.PORTRAIT) } }.padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(imageVector = Icons.Default.Edit, contentDescription = "Format", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurface)
                         Spacer(modifier = Modifier.width(6.dp))
-                        val labelStr = if (state.displayFormat == DisplayFormat.LANDSCAPE) "Paysage" else "Portrait"
-                        Text(text = labelStr, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text(text = if (state.displayFormat == DisplayFormat.LANDSCAPE) "Paysage" else "Portrait", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
@@ -143,12 +119,8 @@ fun ItemFormBody(
             Column {
                 Row(modifier = Modifier.fillMaxWidth().clickable { onCollectionClick() }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (finalSelectedCollection != null) {
-                        if (finalSelectedCover.startsWith("file") || finalSelectedCover.startsWith("/") || finalSelectedCover.startsWith("content") || finalSelectedCover.startsWith("http")) {
-                            AsyncImage(model = finalSelectedCover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(24.dp).clip(CircleShape))
-                        } else {
-                            val emoji = if (finalSelectedCover.isNotBlank()) finalSelectedCover else getEmojiForCollection(finalSelectedName)
-                            Text(text = emoji, fontSize = 18.sp)
-                        }
+                        if (finalSelectedCover.startsWith("file") || finalSelectedCover.startsWith("/") || finalSelectedCover.startsWith("content") || finalSelectedCover.startsWith("http")) { AsyncImage(model = finalSelectedCover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(24.dp).clip(CircleShape)) }
+                        else { Text(text = if (finalSelectedCover.isNotBlank()) finalSelectedCover else getEmojiForCollection(finalSelectedName), fontSize = 18.sp) }
                     } else { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary) }
                     Spacer(modifier = Modifier.width(12.dp))
                     Text("Dossier", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
@@ -166,38 +138,41 @@ fun ItemFormBody(
             }
         }
 
-        // ✅ CORRECTION: S'affiche TOUT LE TEMPS pour pouvoir cliquer sur "Ajouter un champ"
-        ProtonPassSection(
-            title = "Informations détaillées",
-            onAddFieldClick = { showAddFieldDialog = true } // ✅ Ouvre la dialogue
-        ) {
-            state.properties.forEach { (propertyName, value) ->
-                ProtonPassFieldRow(
-                    label = propertyName,
-                    value = value,
-                    onValueChange = { newValue -> viewModel.updateProperty(propertyName, newValue) },
-                    onDeleteClick = { viewModel.removeProperty(propertyName) }
-                )
-                HorizontalDivider(color = backgroundColor, thickness = 1.dp, modifier = Modifier.padding(start = 16.dp))
+        // ✅ SECTIONS DYNAMIQUES ICI
+        val customSectionsList = (listOf("Informations détaillées") + state.customSections + state.properties.map { it.sectionName }).distinct()
+
+        customSectionsList.forEach { sectionName ->
+            val propsInSection = state.properties.filter { it.sectionName == sectionName }
+            ProtonPassSection(
+                title = sectionName,
+                onAddFieldClick = { showAddFieldDialogForSection = sectionName }
+            ) {
+                propsInSection.forEach { prop ->
+                    ProtonPassFieldRow(
+                        label = prop.label,
+                        value = prop.value,
+                        onValueChange = { newValue -> viewModel.updatePropertyValue(prop.label, sectionName, newValue) },
+                        onDeleteClick = { viewModel.removeProperty(prop.label, sectionName) }
+                    )
+                    HorizontalDivider(color = backgroundColor, thickness = 1.dp, modifier = Modifier.padding(start = 16.dp))
+                }
             }
         }
 
-        ProtonPassSection(
-            title = "Informations d'acquisition",
-            onAddFieldClick = { showAddFieldDialog = true }
-        ) {
-            ProtonPassFieldRow(label = "Prix d'achat", value = state.price, onValueChange = { newPrice -> viewModel.updateForm { form -> form.copy(price = newPrice) } }, keyboardType = KeyboardType.Number)
-            HorizontalDivider(color = backgroundColor, thickness = 1.dp, modifier = Modifier.padding(start = 16.dp))
-            ProtonPassFieldRow(label = "Date d'achat", value = state.purchaseDate, onValueChange = {}, readOnly = true)
-        }
-
         TextButton(
-            onClick = { Toast.makeText(context, "Les sections personnalisées arrivent bientôt ! Utilisez les champs personnalisés en attendant.", Toast.LENGTH_LONG).show() },
+            onClick = { showAddSectionDialog = true },
             modifier = Modifier.padding(horizontal = 16.dp).align(Alignment.Start)
         ) {
             Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.width(8.dp))
             Text("Créer une section", fontWeight = FontWeight.Medium)
+        }
+
+        // Fixe : Informations d'acquisition (Date et Prix de l'objet)
+        ProtonPassSection(title = "Informations d'acquisition", onAddFieldClick = { showAddFieldDialogForSection = "Informations d'acquisition" }) {
+            ProtonPassFieldRow(label = "Prix d'achat", value = state.price, onValueChange = { newPrice -> viewModel.updateForm { form -> form.copy(price = newPrice) } }, keyboardType = KeyboardType.Number)
+            HorizontalDivider(color = backgroundColor, thickness = 1.dp, modifier = Modifier.padding(start = 16.dp))
+            ProtonPassFieldRow(label = "Date d'achat", value = state.purchaseDate, onValueChange = {}, readOnly = true)
         }
 
         Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
@@ -220,32 +195,24 @@ fun ItemFormBody(
         Spacer(modifier = Modifier.height(100.dp))
     }
 
-    // ✅ NOUVEAU: Boîte de dialogue pour ajouter un champ dynamique
-    if (showAddFieldDialog) {
+    // BOITES DE DIALOGUE
+    if (showAddSectionDialog) {
         AlertDialog(
-            onDismissRequest = { showAddFieldDialog = false },
+            onDismissRequest = { showAddSectionDialog = false },
+            title = { Text("Nouvelle section", fontWeight = FontWeight.Bold) },
+            text = { OutlinedTextField(value = newSectionName, onValueChange = { newSectionName = it }, label = { Text("Nom de la section") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = { Button(onClick = { if (newSectionName.isNotBlank()) { viewModel.addSection(newSectionName.trim()); newSectionName = ""; showAddSectionDialog = false } }) { Text("Créer") } },
+            dismissButton = { TextButton(onClick = { showAddSectionDialog = false }) { Text("Annuler") } }
+        )
+    }
+
+    if (showAddFieldDialogForSection != null) {
+        AlertDialog(
+            onDismissRequest = { showAddFieldDialogForSection = null },
             title = { Text("Nouveau champ personnalisé", fontWeight = FontWeight.Bold) },
-            text = {
-                OutlinedTextField(
-                    value = newFieldName,
-                    onValueChange = { newFieldName = it },
-                    label = { Text("Ex: Éditeur, Taille, État...") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                Button(onClick = {
-                    if (newFieldName.isNotBlank()) {
-                        viewModel.updateProperty(newFieldName.trim(), "")
-                        newFieldName = ""
-                        showAddFieldDialog = false
-                    }
-                }) { Text("Ajouter") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddFieldDialog = false }) { Text("Annuler") }
-            }
+            text = { OutlinedTextField(value = newFieldName, onValueChange = { newFieldName = it }, label = { Text("Ex: Éditeur, Taille, État...") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = { Button(onClick = { if (newFieldName.isNotBlank()) { viewModel.addProperty(showAddFieldDialogForSection!!, newFieldName.trim()); newFieldName = ""; showAddFieldDialogForSection = null } }) { Text("Ajouter") } },
+            dismissButton = { TextButton(onClick = { showAddFieldDialogForSection = null }) { Text("Annuler") } }
         )
     }
 

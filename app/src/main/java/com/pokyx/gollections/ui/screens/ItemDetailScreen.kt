@@ -1,41 +1,41 @@
 package com.pokyx.gollections.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.pokyx.gollections.R
+import com.pokyx.gollections.data.model.DisplayFormat
 import com.pokyx.gollections.ui.viewmodels.ItemViewModel
-import com.pokyx.gollections.utils.getLocalizedPropertyLabel
-import java.text.NumberFormat
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ItemDetailScreen(
     animatedVisibilityScope: AnimatedVisibilityScope,
@@ -46,191 +46,214 @@ fun ItemDetailScreen(
     viewModel: ItemViewModel = hiltViewModel()
 ) {
     val itemWithTags by viewModel.getItemByIdWithTags(itemId).collectAsStateWithLifecycle(initialValue = null)
-    var showDeleteDialog by remember { mutableStateOf(false) }
+    val attachments by viewModel.getAttachmentsStream(itemId).collectAsStateWithLifecycle(initialValue = emptyList())
 
-    // OPTIMISATION : Capture de l'état pour activer le Smart Cast de Kotlin
-    val currentData = itemWithTags
+    val backgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+
+    if (itemWithTags == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    val item = itemWithTags!!.item
+    val properties = itemWithTags!!.properties
+    val tags = itemWithTags!!.tags
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { },
+                title = {},
                 navigationIcon = {
-                    // Le bouton retour est TOUJOURS visible, même pendant le chargement
-                    IconButton(
-                        onClick = onBackClick,
-                        modifier = Modifier.padding(start = 8.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                    ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour") }
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Retour")
+                    }
                 },
                 actions = {
-                    // Les actions n'apparaissent que si les données sont prêtes
-                    if (currentData != null) {
-                        IconButton(
-                            onClick = { onEditClick(currentData.item.id) },
-                            modifier = Modifier.padding(end = 8.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                        ) { Icon(Icons.Default.Edit, contentDescription = "Modifier") }
-
-                        IconButton(
-                            onClick = { showDeleteDialog = true },
-                            modifier = Modifier.padding(end = 8.dp).background(MaterialTheme.colorScheme.errorContainer, CircleShape)
-                        ) { Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.onErrorContainer) }
+                    IconButton(onClick = { onEditClick(itemId) }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Modifier")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
-        }
+        },
+        containerColor = backgroundColor
     ) { paddingValues ->
-        // OPTIMISATION : Gestion du chargement intégrée AU SEIN du Scaffold
-        if (currentData == null) {
-            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else {
-            // Grâce au Smart Cast, plus besoin de '!!'
-            val item = currentData.item
-            val tags = currentData.tags
-            val properties = currentData.properties
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(horizontal = 24.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-
-                with(sharedTransitionScope) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            contentPadding = PaddingValues(bottom = 100.dp)
+        ) {
+            // 1. IMAGE D'EN-TÊTE AVEC LE BON FORMAT
+            item {
+                val imageRatio = if (item.displayFormat == DisplayFormat.LANDSCAPE) 16f / 9f else 3f / 4f
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .aspectRatio(imageRatio)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface),
+                    contentAlignment = Alignment.Center
+                ) {
                     if (item.imageUrl.isNotBlank()) {
                         AsyncImage(
                             model = item.imageUrl,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(250.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .sharedElement(
-                                    rememberSharedContentState(key = "item_image_${item.id}"),
-                                    animatedVisibilityScope = animatedVisibilityScope,
-                                    boundsTransform = { _, _ -> tween(durationMillis = 400) }
-                                ),
-                            contentScale = ContentScale.Crop
+                            contentDescription = item.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
                         )
                     } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .sharedElement(
-                                    rememberSharedContentState(key = "item_image_${item.id}"),
-                                    animatedVisibilityScope = animatedVisibilityScope,
-                                    boundsTransform = { _, _ -> tween(durationMillis = 400) }
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) { Text(item.itemType.emoji, fontSize = 60.sp) }
+                        Text("Aucune image", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-
-                Column {
-                    Text(text = item.title, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "${item.itemType.emoji} ${item.itemType.label}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
-                        if (item.status.isNotBlank()) {
-                            Text(text = " • ${item.status}", color = MaterialTheme.colorScheme.outline)
-                        }
-                    }
-                }
-
-                if (tags.isNotEmpty()) {
-                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        tags.forEach { tag ->
-                            Box(
-                                modifier = Modifier.background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) { Text(text = tag.name, color = MaterialTheme.colorScheme.onSecondaryContainer, fontSize = 12.sp) }
-                        }
-                    }
-                }
-
-                if (properties.isNotEmpty()) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(stringResource(R.string.title_details), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                            HorizontalDivider(modifier = Modifier.padding(bottom = 4.dp))
-                            properties.forEach { prop ->
-                                if (prop.value.isNotBlank()) {
-                                    Column {
-                                        Text(text = getLocalizedPropertyLabel(prop.label), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                                        Text(text = prop.value, fontSize = 16.sp, modifier = Modifier.padding(top = 2.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                ) {
-                    Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(stringResource(R.string.label_price), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                            val formattedPrice = remember(item.price) {
-                                if (item.price > 0.0) NumberFormat.getCurrencyInstance().format(item.price)
-                                else null
-                            }
-                            Text(text = formattedPrice ?: stringResource(R.string.not_specified_price), fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(stringResource(R.string.label_purchase_date), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                            Text(text = item.purchaseDate.ifBlank { stringResource(R.string.not_specified) }, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                        }
-                    }
-                }
-
-                if (item.isLoaned) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(stringResource(R.string.loan_status_title), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(stringResource(R.string.loan_status_active_to, item.loanTo), color = MaterialTheme.colorScheme.onTertiaryContainer)
-                            Text(stringResource(R.string.loan_status_active_since, item.loanDate), fontSize = 12.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f))
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(40.dp))
             }
 
-            if (showDeleteDialog) {
-                AlertDialog(
-                    onDismissRequest = { showDeleteDialog = false },
-                    title = { Text(stringResource(R.string.delete_item_title)) },
-                    text = { Text(stringResource(R.string.delete_item_warning, item.title)) },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                viewModel.deleteItem(item)
-                                showDeleteDialog = false
-                                onBackClick()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) { Text("Supprimer") } // OPTIMISATION : Retrait du hack textuel
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) }
+            // 2. EN-TÊTE PRINCIPAL (Titre, Type, Tags)
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 16.dp)
+                ) {
+                    Text(
+                        text = item.title,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "${item.itemType.emoji} ${item.itemType.label}", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                     }
-                )
+
+                    if (tags.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            tags.forEach { tag ->
+                                SuggestionChip(
+                                    onClick = { },
+                                    label = { Text(tag.name) },
+                                    colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. SECTIONS DYNAMIQUES
+            val propertiesBySection = properties.groupBy { it.sectionName }
+
+            propertiesBySection.forEach { (sectionName, props) ->
+                item {
+                    DetailSectionCard(title = sectionName) {
+                        props.forEachIndexed { index, prop ->
+                            DetailRow(label = prop.label, value = prop.value)
+                            if (index < props.size - 1) {
+                                HorizontalDivider(modifier = Modifier.padding(start = 16.dp), color = backgroundColor)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. PIÈCES JOINTES
+            if (attachments.isNotEmpty()) {
+                item {
+                    DetailSectionCard(title = "Pièces jointes") {
+                        attachments.forEachIndexed { index, attachment ->
+                            AttachmentRow(uriString = attachment.uri)
+                            if (index < attachments.size - 1) {
+                                HorizontalDivider(modifier = Modifier.padding(start = 48.dp), color = backgroundColor)
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+fun DetailSectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            if (title.isNotBlank()) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 15.sp,
+            modifier = Modifier.weight(0.4f)
+        )
+        Text(
+            text = if (value.isNotBlank()) value else "-",
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(0.6f),
+            textAlign = TextAlign.End
+        )
+    }
+}
+
+@Composable
+fun AttachmentRow(uriString: String) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uriString))
+                    intent.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Impossible d'ouvrir ce fichier (application introuvable)", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.AttachFile, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = "Ouvrir le document",
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Medium,
+            fontSize = 15.sp
+        )
+        Icon(Icons.Default.OpenInNew, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
     }
 }

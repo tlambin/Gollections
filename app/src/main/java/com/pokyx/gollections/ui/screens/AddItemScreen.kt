@@ -31,6 +31,7 @@ import coil.compose.AsyncImage
 import com.pokyx.gollections.R
 import com.pokyx.gollections.data.model.Collection
 import com.pokyx.gollections.data.model.CollectionItem
+import com.pokyx.gollections.data.model.ItemProperty
 import com.pokyx.gollections.data.model.ItemType
 import com.pokyx.gollections.data.model.Tag
 import com.pokyx.gollections.ui.components.ItemFormBody
@@ -62,7 +63,7 @@ fun AddItemScreen(
     scannedTitle: String? = null,
     scannedImageUrl: String? = null,
     onBackClick: () -> Unit,
-    onSaveClick: (CollectionItem, List<Tag>, Map<String, String>, List<String>) -> Unit,
+    onSaveClick: (CollectionItem, List<Tag>, List<ItemProperty>, List<String>) -> Unit,
     viewModel: ItemViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current

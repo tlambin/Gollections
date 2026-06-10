@@ -43,7 +43,7 @@ import javax.inject.Inject
 data class ItemFormState(
     val title: String = "",
     val itemType: ItemType = ItemType.OTHER,
-    val displayFormat: DisplayFormat = DisplayFormat.LANDSCAPE, // ✅ CORRECTION: Le format est mémorisé ici !
+    val displayFormat: DisplayFormat = DisplayFormat.LANDSCAPE,
     val selectedPath: List<Long> = emptyList(),
     val purchaseDate: String = "",
     val price: String = "",
@@ -53,8 +53,8 @@ data class ItemFormState(
     val loanDate: String = "",
     val status: String = "Non commencé",
     val selectedTags: Set<Tag> = emptySet(),
-    val properties: Map<String, String> = emptyMap(),
-    val propertyTypes: Map<String, String> = emptyMap(),
+    val properties: List<ItemProperty> = emptyList(), // ✅ Modifié pour inclure la section
+    val customSections: List<String> = emptyList(),   // ✅ NOUVEAU: Stocke les sections vides créées par l'UI
     val attachments: List<String> = emptyList()
 )
 
@@ -65,7 +65,7 @@ class ItemViewModel @Inject constructor(
     private val itemRepository: ItemRepository,
     private val tagRepository: TagRepository,
     private val templateRepository: CollectionPropertyTemplateRepository,
-    private val attachmentDao: ItemAttachmentDao, // ✅ CORRECTION: Nécessaire pour recharger les factures
+    private val attachmentDao: ItemAttachmentDao,
     private val imageProcessor: ImageProcessorRepository,
     private val insertItemUseCase: InsertItemUseCase,
     private val updateItemUseCase: UpdateItemUseCase,
@@ -106,29 +106,17 @@ class ItemViewModel @Inject constructor(
         }
     }
 
-    fun resetFormState(
-        preSelectedCollectionId: Long? = null,
-        collectionsList: List<Collection> = emptyList(),
-        scannedTitle: String? = null,
-        scannedImageUrl: String? = null
-    ) {
+    fun resetFormState(preSelectedCollectionId: Long? = null, collectionsList: List<Collection> = emptyList(), scannedTitle: String? = null, scannedImageUrl: String? = null) {
         if (isFormInitialized) return
         isFormInitialized = true
-
         val initialPath = getCollectionPathUseCase(preSelectedCollectionId, collectionsList)
         val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
         val autoType = detectItemTypeFromPath(initialPath, collectionsList)
-
         updateForm {
             ItemFormState(
-                selectedPath = initialPath,
-                title = scannedTitle ?: "",
-                imageUrl = scannedImageUrl ?: "",
-                purchaseDate = currentDate,
-                loanDate = currentDate,
-                itemType = autoType,
-                displayFormat = DisplayFormat.LANDSCAPE,
-                attachments = emptyList()
+                selectedPath = initialPath, title = scannedTitle ?: "", imageUrl = scannedImageUrl ?: "",
+                purchaseDate = currentDate, loanDate = currentDate, itemType = autoType,
+                displayFormat = DisplayFormat.LANDSCAPE, attachments = emptyList(), properties = emptyList(), customSections = emptyList()
             )
         }
         initialPath.lastOrNull()?.let { fetchTemplatesForCollection(it) }
@@ -137,10 +125,7 @@ class ItemViewModel @Inject constructor(
     fun updateSelectedPath(path: List<Long>) {
         val autoType = detectItemTypeFromPath(path, collections.value)
         updateForm { oldState ->
-            oldState.copy(
-                selectedPath = path,
-                itemType = if (oldState.itemType == ItemType.OTHER) autoType else oldState.itemType
-            )
+            oldState.copy(selectedPath = path, itemType = if (oldState.itemType == ItemType.OTHER) autoType else oldState.itemType)
         }
         path.lastOrNull()?.let { fetchTemplatesForCollection(it) }
     }
@@ -150,57 +135,64 @@ class ItemViewModel @Inject constructor(
         templateJob = viewModelScope.launch {
             templateRepository.getTemplatesForCollection(collectionId).collect { templates ->
                 updateForm { oldState ->
-                    val updatedProps = oldState.properties.toMutableMap()
-                    val updatedTypes = oldState.propertyTypes.toMutableMap()
-
+                    val currentProps = oldState.properties.toMutableList()
                     templates.forEach { template ->
-                        if (!updatedProps.containsKey(template.propertyName)) {
-                            updatedProps[template.propertyName] = ""
+                        if (currentProps.none { it.label == template.propertyName }) {
+                            currentProps.add(ItemProperty(itemId = 0, label = template.propertyName, value = "", sectionName = "Informations détaillées"))
                         }
-                        updatedTypes[template.propertyName] = template.propertyType
                     }
-                    oldState.copy(properties = updatedProps, propertyTypes = updatedTypes)
+                    oldState.copy(properties = currentProps)
                 }
             }
         }
     }
 
-    fun addAttachment(uri: String) {
-        updateForm { it.copy(attachments = it.attachments + uri) }
+    fun addAttachment(uri: String) { updateForm { it.copy(attachments = it.attachments + uri) } }
+    fun removeAttachment(uri: String) { updateForm { it.copy(attachments = it.attachments - uri) } }
+
+    // ✅ NOUVELLES FONCTIONS DE GESTION DES SECTIONS ET CHAMPS
+    fun addSection(sectionName: String) {
+        updateForm { it.copy(customSections = (it.customSections + sectionName).distinct()) }
     }
 
-    fun removeAttachment(uri: String) {
-        updateForm { it.copy(attachments = it.attachments - uri) }
+    fun addProperty(sectionName: String, label: String) {
+        updateForm { state ->
+            val newProp = ItemProperty(itemId = 0, label = label, value = "", sectionName = sectionName)
+            state.copy(properties = state.properties + newProp)
+        }
     }
 
-    // ✅ CORRECTION MAJEURE: On charge les attachments et le DisplayFormat depuis la base
+    fun updatePropertyValue(label: String, sectionName: String, newValue: String) {
+        updateForm { state ->
+            val updated = state.properties.map {
+                if (it.label == label && it.sectionName == sectionName) it.copy(value = newValue) else it
+            }
+            state.copy(properties = updated)
+        }
+    }
+
+    fun removeProperty(label: String, sectionName: String) {
+        updateForm { state ->
+            state.copy(properties = state.properties.filterNot { it.label == label && it.sectionName == sectionName })
+        }
+    }
+
     fun loadItemIntoForm(itemWithTags: CollectionItemWithTags, collectionsList: List<Collection>) {
         isFormInitialized = true
         val item = itemWithTags.item
-
         viewModelScope.launch {
             val fetchedAttachments = attachmentDao.getAttachmentsForItemDirect(item.id).map { it.uri }
-
             val priceString = if (item.price > 0.0) item.price.toString().replace(".", ",") else ""
             val path = com.pokyx.gollections.utils.buildPathBottomUp(item.collectionId, collectionsList)
-            val mappedProperties = itemWithTags.properties.associate { prop -> prop.label to prop.value }
 
             updateForm { oldState ->
                 oldState.copy(
-                    title = item.title,
-                    price = priceString,
-                    purchaseDate = item.purchaseDate,
-                    imageUrl = item.imageUrl,
-                    status = item.status,
-                    isLoaned = item.isLoaned,
-                    loanTo = item.loanTo,
-                    loanDate = item.loanDate,
-                    itemType = item.itemType,
-                    displayFormat = item.displayFormat, // Recharge le format
-                    selectedPath = path,
-                    selectedTags = itemWithTags.tags.toSet(),
-                    properties = mappedProperties,
-                    attachments = fetchedAttachments // Recharge les factures
+                    title = item.title, price = priceString, purchaseDate = item.purchaseDate, imageUrl = item.imageUrl,
+                    status = item.status, isLoaned = item.isLoaned, loanTo = item.loanTo, loanDate = item.loanDate,
+                    itemType = item.itemType, displayFormat = item.displayFormat, selectedPath = path,
+                    selectedTags = itemWithTags.tags.toSet(), attachments = fetchedAttachments,
+                    properties = itemWithTags.properties, // Déjà une List<ItemProperty> !
+                    customSections = itemWithTags.properties.map { it.sectionName }.distinct()
                 )
             }
             fetchTemplatesForCollection(item.collectionId)
@@ -209,45 +201,27 @@ class ItemViewModel @Inject constructor(
 
     fun changeItemType(newType: ItemType) {
         val defaultPropsForType = when (newType) {
-            ItemType.MOVIE -> mapOf("Réalisateur" to "", "Année de sortie" to "", "Format (DVD, Blu-Ray, Démat)" to "", "Synopsis" to "")
-            ItemType.BOOK -> mapOf("Auteur" to "", "Date de publication" to "", "Résumé" to "", "Nombre de pages" to "")
-            ItemType.GAME -> mapOf("Studio" to "", "Plateforme" to "", "Année de sortie" to "", "Description" to "")
-            ItemType.MUSIC -> mapOf("Artiste" to "", "Album" to "", "Format (Vinyle, CD, Cassette)" to "", "Année de sortie" to "")
-            ItemType.OTHER -> emptyMap()
+            ItemType.MOVIE -> listOf("Réalisateur", "Année de sortie", "Format (DVD, Blu-Ray, Démat)", "Synopsis")
+            ItemType.BOOK -> listOf("Auteur", "Date de publication", "Résumé", "Nombre de pages")
+            ItemType.GAME -> listOf("Studio", "Plateforme", "Année de sortie", "Description")
+            ItemType.MUSIC -> listOf("Artiste", "Album", "Format (Vinyle, CD, Cassette)", "Année de sortie")
+            ItemType.OTHER -> emptyList()
         }
-        val defaultTypesForFields = defaultPropsForType.mapValues { (key, _) ->
-            if (key.contains("Année") || key.contains("pages") || key.contains("publication")) "NUMBER" else "TEXT"
-        }
-        updateForm { oldState ->
-            oldState.copy(itemType = newType, properties = defaultPropsForType, propertyTypes = defaultTypesForFields)
-        }
+        val mappedProps = defaultPropsForType.map { ItemProperty(itemId = 0, label = it, value = "", sectionName = "Informations détaillées") }
+        updateForm { oldState -> oldState.copy(itemType = newType, properties = mappedProps) }
     }
 
-    fun updateProperty(key: String, value: String) {
-        updateForm { it.copy(properties = it.properties + (key to value)) }
-    }
-
-    fun removeProperty(key: String) {
-        updateForm { oldState ->
-            val newProps = oldState.properties.toMutableMap().apply { remove(key) }
-            val newTypes = oldState.propertyTypes.toMutableMap().apply { remove(key) }
-            oldState.copy(properties = newProps, propertyTypes = newTypes)
-        }
-    }
-
-    fun insertItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>, attachments: List<String>) {
+    fun insertItemWithTags(item: CollectionItem, tags: List<Tag>, properties: List<ItemProperty>, attachments: List<String>) {
         viewModelScope.launch {
-            val itemProperties = properties.map { (key, value) -> ItemProperty(itemId = 0, label = key, value = value) }
             val itemAttachments = attachments.map { uri -> ItemAttachment(itemId = 0, uri = uri) }
-            insertItemUseCase(item, tags, itemProperties, itemAttachments)
+            insertItemUseCase(item, tags, properties, itemAttachments)
         }
     }
 
-    fun updateItemWithTags(item: CollectionItem, tags: List<Tag>, properties: Map<String, String>, attachments: List<String>) {
+    fun updateItemWithTags(item: CollectionItem, tags: List<Tag>, properties: List<ItemProperty>, attachments: List<String>) {
         viewModelScope.launch {
-            val itemProperties = properties.map { (key, value) -> ItemProperty(itemId = item.id, label = key, value = value) }
             val itemAttachments = attachments.map { uri -> ItemAttachment(itemId = item.id, uri = uri) }
-            updateItemUseCase(item, tags, itemProperties, itemAttachments)
+            updateItemUseCase(item, tags, properties, itemAttachments)
         }
     }
 
@@ -263,4 +237,7 @@ class ItemViewModel @Inject constructor(
             onResult(uri?.toString())
         }
     }
+
+    // Ajoute cette fonction dans ItemViewModel.kt
+    fun getAttachmentsStream(itemId: Int): Flow<List<ItemAttachment>> = attachmentDao.getAttachmentsForItem(itemId)
 }
