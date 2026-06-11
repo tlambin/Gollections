@@ -257,7 +257,34 @@ fun ItemFormBody(
     }
 
     if (showSourceDialog) {
-        // ... (Source Dialog Image -inchangé)
+        AlertDialog(
+            onDismissRequest = { showSourceDialog = false },
+            title = { Text("Source de l'illustration", fontWeight = FontWeight.Bold) },
+            text = {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; showUrlDialog = true }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.Planet, contentDescription = "URL", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Text("URL", fontSize = 12.sp) }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
+                        showSourceDialog = false
+                        scope.launch(Dispatchers.IO) {
+                            val tempFile = File.createTempFile("cam_", ".jpg", context.cacheDir)
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
+                            withContext(Dispatchers.Main) { tempPhotoUriString = uri.toString(); cameraLauncher.launch(uri) }
+                        }
+                    }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.Camera, contentDescription = "Appareil", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Text("Appareil", fontSize = 12.sp) }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showSourceDialog = false; galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)) { Icon(imageVector = GollectionsIcons.RoundedGallery, contentDescription = "Galerie", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary); Text("Galerie", fontSize = 12.sp) }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showSourceDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+    if (showUrlDialog) {
+        AlertDialog(
+            onDismissRequest = { showUrlDialog = false },
+            title = { Text("Lien de l'image (URL)", fontWeight = FontWeight.Bold) },
+            text = { OutlinedTextField(value = urlInput, onValueChange = { urlInput = it }, label = { Text("Coller l'URL") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = { Button(onClick = { if (urlInput.isNotBlank()) viewModel.updateForm { it.copy(imageUrl = urlInput.trim()) }; showUrlDialog = false }) { Text("OK") } },
+            dismissButton = { TextButton(onClick = { showUrlDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
     }
 }
 
